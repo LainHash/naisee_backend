@@ -29,6 +29,20 @@ describe('AppController (e2e)', () => {
     });
   });
 
+  it('/api/v1/health (GET)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .expect(200);
+
+    expect(res.body).toEqual({
+      success: true,
+      data: {
+        status: 'ok',
+        database: 'not_initialized',
+      },
+    });
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')

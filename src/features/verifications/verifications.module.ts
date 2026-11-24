@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Verification } from './entities/verification.entity.js';
 
-@Module({})
+@Module({
+  imports: [TypeOrmModule.forFeature([Verification])],
+  exports: [TypeOrmModule],
+})
 export class VerificationsModule {}
-
