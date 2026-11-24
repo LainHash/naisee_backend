@@ -140,6 +140,15 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
       .expect(401);
   });
 
+  it('/api/v1/ai/classify-image validates empty imageUrl with 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/ai/classify-image')
+      .send({ imageUrl: '' })
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
@@ -148,6 +157,7 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.info?.title).toBe('NaiSee API');
     expect(res.body.paths?.['/api/v1/categories']).toBeDefined();
     expect(res.body.paths?.['/api/v1/media/upload']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/ai/classify-image']).toBeDefined();
   });
 
   afterEach(async () => {
