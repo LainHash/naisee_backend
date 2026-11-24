@@ -18,11 +18,15 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/api/v1 (GET)', () => {
-    return request(app.getHttpServer())
+  it('/api/v1 (GET)', async () => {
+    const res = await request(app.getHttpServer())
       .get('/api/v1')
-      .expect(200)
-      .expect('Hello World!');
+      .expect(200);
+
+    expect(res.body).toEqual({
+      success: true,
+      data: 'Hello World!',
+    });
   });
 
   it('/docs/openapi.json (GET)', async () => {

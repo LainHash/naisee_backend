@@ -1,0 +1,60 @@
+export enum RoleName {
+  CITIZEN = 'CITIZEN',
+  STAFF = 'STAFF',
+  VOLUNTEER = 'VOLUNTEER',
+  ADMIN = 'ADMIN',
+}
+
+export enum IssueStatus {
+  PENDING_REVIEW = 'PENDING_REVIEW',
+  RECEIVED = 'RECEIVED',
+  VERIFYING = 'VERIFYING',
+  IN_PROGRESS = 'IN_PROGRESS',
+  RESOLVED = 'RESOLVED',
+}
+
+export enum Priority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  CRITICAL = 'CRITICAL',
+}
+
+export enum ReportType {
+  INITIAL = 'INITIAL',
+  ME_TOO = 'ME_TOO',
+  MERGED = 'MERGED',
+}
+
+export enum MediaStage {
+  BEFORE = 'BEFORE',
+  VERIFICATION = 'VERIFICATION',
+  AFTER = 'AFTER',
+}
+
+export enum VerificationStatus {
+  OPEN = 'OPEN',
+  IN_PROGRESS = 'IN_PROGRESS',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum TimelineAction {
+  CREATED = 'CREATED',
+  ME_TOO_ADDED = 'ME_TOO_ADDED',
+  MERGED = 'MERGED',
+  RECEIVED = 'RECEIVED',
+  ASSIGNED = 'ASSIGNED',
+  VERIFICATION_REQUESTED = 'VERIFICATION_REQUESTED',
+  VERIFICATION_SUBMITTED = 'VERIFICATION_SUBMITTED',
+  PROGRESS_NOTE = 'PROGRESS_NOTE',
+  RESOLVED = 'RESOLVED',
+  REOPENED = 'REOPENED',
+}
+
+export enum FeedbackReviewStatus {
+  SUBMITTED = 'SUBMITTED',
+  ACKNOWLEDGED = 'ACKNOWLEDGED',
+  REOPENED = 'REOPENED',
+}
+

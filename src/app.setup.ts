@@ -1,9 +1,11 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
+import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor.js';
 
 /**
- * Configures global API prefix, CORS, code-first DTO validation, and OpenAPI docs.
+ * Configures global API prefix, CORS, response envelope, DTO validation, and OpenAPI docs.
  */
 export function setupApp(app: INestApplication): void {
   const configService = app.get(ConfigService);
@@ -22,6 +24,9 @@ export function setupApp(app: INestApplication): void {
     origin: corsOrigins,
     credentials: true,
   });
+
+  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new ResponseTransformInterceptor());
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -48,4 +53,3 @@ export function setupApp(app: INestApplication): void {
     });
   }
 }
-
