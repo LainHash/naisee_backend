@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
 import { AppModule } from './../src/app.module.js';
+import { setupApp } from './../src/app.setup.js';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -13,14 +14,24 @@ describe('AppController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    setupApp(app);
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/api/v1 (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
+      .get('/api/v1')
       .expect(200)
       .expect('Hello World!');
+  });
+
+  it('/docs/openapi.json (GET)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/docs/openapi.json')
+      .expect(200);
+
+    expect(res.body.info?.title).toBe('NaiSee API');
+    expect(res.body.paths?.['/api/v1']).toBeDefined();
   });
 
   afterEach(async () => {
