@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import type { Request } from 'express';
+import { IS_OPTIONAL_AUTH_KEY } from '../decorators/optional-auth.decorator.js';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator.js';
 import type {
   AuthenticatedUser,
@@ -44,11 +45,20 @@ export class JwtAuthGuard implements CanActivate {
       return true;
     }
 
+    const isOptionalAuth = this.reflector.getAllAndOverride<boolean>(
+      IS_OPTIONAL_AUTH_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+
     const request = context
       .switchToHttp()
       .getRequest<Request & { user?: AuthenticatedUser }>();
     const token = this.extractBearerToken(request);
+
     if (!token) {
+      if (isOptionalAuth) {
+        return true;
+      }
       throw new UnauthorizedException('Missing Bearer access token');
     }
 
@@ -79,4 +89,3 @@ export class JwtAuthGuard implements CanActivate {
     return scheme === 'Bearer' && token ? token : undefined;
   }
 }
-

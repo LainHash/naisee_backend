@@ -3,18 +3,29 @@ import { INestApplication } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import request from 'supertest';
 import { App } from 'supertest/types.js';
-import { RoleName } from './../src/common/enums/domain.enums.js';
+import { MediaStage, RoleName } from './../src/common/enums/domain.enums.js';
+import { CloudinaryService } from './../src/features/media/cloudinary.service.js';
 import { AppModule } from './../src/app.module.js';
 import { setupApp } from './../src/app.setup.js';
 
-describe('AppController & Auth RBAC (e2e)', () => {
+describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
   let app: INestApplication<App>;
   let jwtService: JwtService;
+  const mockUploadImage = vi
+    .fn()
+    .mockResolvedValue(
+      'https://res.cloudinary.com/demo/image/upload/v1/naisee/before/mock.png',
+    );
 
   beforeEach(async () => {
+    mockUploadImage.mockClear();
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(CloudinaryService)
+      .useValue({ uploadImage: mockUploadImage })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     setupApp(app);
@@ -55,7 +66,7 @@ describe('AppController & Auth RBAC (e2e)', () => {
     expect(res.body.success).toBe(false);
   });
 
-  it('/api/v1/auth/staff-check returns 403 for CITIZEN and 200 for STAFF', async () => {
+  it('enforces RBAC on /auth/staff-check and /departments', async () => {
     const citizenToken = await jwtService.signAsync({
       sub: 1,
       publicId: 'uuid-citizen',
@@ -68,6 +79,11 @@ describe('AppController & Auth RBAC (e2e)', () => {
 
     await request(app.getHttpServer())
       .get('/api/v1/auth/staff-check')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/departments')
       .set('Authorization', `Bearer ${citizenToken}`)
       .expect(403);
 
@@ -95,14 +111,43 @@ describe('AppController & Auth RBAC (e2e)', () => {
     });
   });
 
+  it('/api/v1/media/upload supports guest BEFORE and enforces auth on AFTER', async () => {
+    const guestRes = await request(app.getHttpServer())
+      .post('/api/v1/media/upload')
+      .field('stage', MediaStage.BEFORE)
+      .attach('file', Buffer.from('png-data'), {
+        filename: 'pothole.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+
+    expect(guestRes.body).toEqual({
+      success: true,
+      data: {
+        url: 'https://res.cloudinary.com/demo/image/upload/v1/naisee/before/mock.png',
+        stage: MediaStage.BEFORE,
+      },
+    });
+    expect(mockUploadImage).toHaveBeenCalledTimes(1);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/media/upload')
+      .field('stage', MediaStage.AFTER)
+      .attach('file', Buffer.from('png-data'), {
+        filename: 'after.png',
+        contentType: 'image/png',
+      })
+      .expect(401);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
       .expect(200);
 
     expect(res.body.info?.title).toBe('NaiSee API');
-    expect(res.body.paths?.['/api/v1']).toBeDefined();
-    expect(res.body.paths?.['/api/v1/auth/demo-switch']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/categories']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/media/upload']).toBeDefined();
   });
 
   afterEach(async () => {
