@@ -7,6 +7,7 @@ import {
   ReportType,
   RoleName,
   TimelineAction,
+  VerificationOutcome,
   VerificationStatus,
 } from '../../../common/enums/domain.enums.js';
 import { Role } from '../../../features/auth/entities/role.entity.js';
@@ -477,6 +478,10 @@ export async function runSeed(
 
       const beforeImageUrl = `/seed-media/${spec.categoryCode.toLowerCase()}-before.svg`;
       const afterImageUrl = `/seed-media/${spec.categoryCode.toLowerCase()}-after.svg`;
+      const resolutionNote =
+        spec.status === IssueStatus.RESOLVED
+          ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
+          : null;
 
       const issue = await issueRepo.save(
         issueRepo.create({
@@ -502,6 +507,7 @@ export async function runSeed(
           assignedById,
           dueAt,
           resolvedAt,
+          resolutionNote,
           aiSuggestedCategoryId: category.id,
           aiConfidence: 0.92,
           createdAt,
@@ -598,6 +604,7 @@ export async function runSeed(
             status: VerificationStatus.OPEN,
             instruction:
               'Nhờ thanh niên tình nguyện kiểm tra thực tế và chụp ảnh bổ sung.',
+            dueAt: new Date(DEMO_ANCHOR_DATE.getTime() + 12 * 60 * 60 * 1000),
           }),
         );
 
@@ -662,7 +669,11 @@ export async function runSeed(
             volunteerId: demoVolunteer.id,
             status: VerificationStatus.COMPLETED,
             instruction: 'Kiểm tra độ sâu ổ gà và mức độ nguy hiểm ban đêm.',
+            dueAt: new Date('2026-11-23T17:00:00.000Z'),
+            outcome: VerificationOutcome.STILL_EXISTS,
             isIssueConfirmed: true,
+            verifiedLatitude: spec.lat,
+            verifiedLongitude: spec.lng,
             safetyRiskNote: 'Nguy hiểm cho xe máy khi trời tối hoặc mưa ngập.',
             resultNote: 'Đã đo thực tế ổ gà rộng ~70cm, sâu 15cm.',
             completedAt: new Date('2026-11-23T11:30:00.000Z'),

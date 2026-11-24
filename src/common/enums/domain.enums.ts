@@ -11,6 +11,7 @@ export enum IssueStatus {
   VERIFYING = 'VERIFYING',
   IN_PROGRESS = 'IN_PROGRESS',
   RESOLVED = 'RESOLVED',
+  REJECTED = 'REJECTED',
 }
 
 export enum Priority {
@@ -39,6 +40,12 @@ export enum VerificationStatus {
   CANCELLED = 'CANCELLED',
 }
 
+export enum VerificationOutcome {
+  STILL_EXISTS = 'STILL_EXISTS',
+  ALREADY_RESOLVED = 'ALREADY_RESOLVED',
+  NOT_FOUND_OR_UNCLEAR = 'NOT_FOUND_OR_UNCLEAR',
+}
+
 export enum TimelineAction {
   CREATED = 'CREATED',
   ME_TOO_ADDED = 'ME_TOO_ADDED',
@@ -50,6 +57,7 @@ export enum TimelineAction {
   PROGRESS_NOTE = 'PROGRESS_NOTE',
   RESOLVED = 'RESOLVED',
   REOPENED = 'REOPENED',
+  REJECTED = 'REJECTED',
 }
 
 export enum FeedbackReviewStatus {
@@ -57,4 +65,3 @@ export enum FeedbackReviewStatus {
   ACKNOWLEDGED = 'ACKNOWLEDGED',
   REOPENED = 'REOPENED',
 }
-

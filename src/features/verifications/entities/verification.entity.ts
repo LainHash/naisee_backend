@@ -7,7 +7,10 @@ import {
   OneToMany,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import { VerificationStatus } from '../../../common/enums/domain.enums.js';
+import {
+  VerificationOutcome,
+  VerificationStatus,
+} from '../../../common/enums/domain.enums.js';
 import { BaseCoreEntity } from '../../../core/database/base.entity.js';
 import { User } from '../../auth/entities/user.entity.js';
 import { Issue } from '../../issues/entities/issue.entity.js';
@@ -51,8 +54,24 @@ export class Verification extends BaseCoreEntity {
   @Column({ type: 'text', nullable: true })
   instruction: string | null;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  dueAt: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: VerificationOutcome,
+    nullable: true,
+  })
+  outcome: VerificationOutcome | null;
+
   @Column({ type: 'boolean', nullable: true })
   isIssueConfirmed: boolean | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  verifiedLatitude: number | null;
+
+  @Column({ type: 'double precision', nullable: true })
+  verifiedLongitude: number | null;
 
   @Column({ type: 'text', nullable: true })
   safetyRiskNote: string | null;
@@ -66,4 +85,3 @@ export class Verification extends BaseCoreEntity {
   @OneToMany('IssueMedia', (media: IssueMedia) => media.verification)
   media: Relation<IssueMedia[]>;
 }
-

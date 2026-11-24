@@ -101,6 +101,15 @@ export class Issue extends BaseCoreEntity {
   @Column({ type: 'timestamptz', nullable: true })
   resolvedAt: Date | null;
 
+  @Column({ type: 'text', nullable: true })
+  resolutionNote: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  rejectionReason: string | null;
+
+  @Column({ type: 'boolean', default: true })
+  isPublic: boolean;
+
   @Column({ type: 'boolean', default: false })
   needsReopenReview: boolean;
 
