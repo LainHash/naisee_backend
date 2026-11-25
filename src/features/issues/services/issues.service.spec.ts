@@ -248,6 +248,7 @@ describe('IssuesService (public & citizen flows)', () => {
       qb,
       txIssueRepo,
       txReportRepo,
+      txMediaRepo,
       txProgressRepo,
       wardBoundaryService,
       txManager,

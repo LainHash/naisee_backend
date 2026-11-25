@@ -143,3 +143,9 @@ export class SubmitVerificationDto {
   imageUrls?: string[];
 }
 
+export class UpdateVolunteerStatusDto {
+  /** Trạng thái kích hoạt quyền tác nghiệp của tình nguyện viên */
+  @IsBoolean()
+  isActive: boolean;
+}
+
