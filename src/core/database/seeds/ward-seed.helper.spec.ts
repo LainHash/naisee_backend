@@ -2,10 +2,16 @@ import { AdministrativeUnitType } from '../../../common/enums/domain.enums.js';
 import { loadWardSeeds, upsertWardsAndBackfill } from './ward-seed.helper.js';
 
 describe('ward-seed.helper', () => {
-  it('loads all 23 Dong Nai wards from bundled dong-nai-wards.geojson', () => {
+  it('loads all 95 Dong Nai wards and communes from bundled dong-nai-wards.geojson', () => {
     const loaded = loadWardSeeds({});
     expect(loaded.source).toBe('geojson');
-    expect(loaded.records).toHaveLength(23);
+    expect(loaded.records).toHaveLength(95);
+    expect(
+      loaded.records.filter((r) => r.unitType === AdministrativeUnitType.WARD),
+    ).toHaveLength(23);
+    expect(
+      loaded.records.filter((r) => r.unitType === AdministrativeUnitType.COMMUNE),
+    ).toHaveLength(72);
     expect(loaded.records[0].unitType).toBe(AdministrativeUnitType.WARD);
   });
 

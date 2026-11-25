@@ -124,7 +124,7 @@ describe('ward-geojson.utils', () => {
     });
   });
 
-  it('loads the bundled 23 Dong Nai wards GeoJSON and resolves sample points', () => {
+  it('loads the bundled 95 Dong Nai wards and communes GeoJSON and resolves sample points', () => {
     const geojsonPath = resolve(
       import.meta.dirname,
       '../../core/database/seeds/data/dong-nai-wards.geojson',
@@ -132,10 +132,14 @@ describe('ward-geojson.utils', () => {
     const raw: unknown = JSON.parse(readFileSync(geojsonPath, 'utf8'));
     const wards = parseWardsFromGeoJson(raw);
 
-    expect(wards).toHaveLength(23);
-    expect(wards.every((w) => w.unitType === AdministrativeUnitType.WARD && w.isActive)).toBe(
-      true,
-    );
+    expect(wards).toHaveLength(95);
+    expect(
+      wards.filter((w) => w.unitType === AdministrativeUnitType.WARD),
+    ).toHaveLength(23);
+    expect(
+      wards.filter((w) => w.unitType === AdministrativeUnitType.COMMUNE),
+    ).toHaveLength(72);
+    expect(wards.every((w) => w.isActive)).toBe(true);
 
     const tranBien = wards.find((w) => w.code === 'DN-TRAN-BIEN');
     expect(tranBien?.boundaryGeoJson).toBeTruthy();
