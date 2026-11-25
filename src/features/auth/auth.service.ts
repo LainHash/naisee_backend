@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnauthorizedException,
@@ -17,6 +18,7 @@ import type {
 } from './dto/auth-response.dto.js';
 import type { DemoSwitchDto } from './dto/demo-switch.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
+import type { RegisterDto } from './dto/register.dto.js';
 import type { UpdatePreferencesDto } from './dto/update-preferences.dto.js';
 import { Role } from './entities/role.entity.js';
 import { User } from './entities/user.entity.js';
@@ -37,8 +39,13 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
+  private normalizePhone(phone: string): string {
+    const cleaned = phone.replaceAll(/[\s-]/g, '');
+    return cleaned.startsWith('+84') ? `0${cleaned.slice(3)}` : cleaned;
+  }
+
   async login(dto: LoginDto): Promise<AuthResponseDto> {
-    const normalizedPhone = dto.phone.replaceAll(/\s+/g, '');
+    const normalizedPhone = this.normalizePhone(dto.phone);
     const user = await this.userRepo.findOne({
       where: { phone: normalizedPhone },
       relations: { role: true },
@@ -55,6 +62,44 @@ export class AuthService {
     }
 
     return this.buildAuthResponse(user);
+  }
+
+  async register(dto: RegisterDto): Promise<AuthResponseDto> {
+    const normalizedPhone = this.normalizePhone(dto.phone);
+    const existing = await this.userRepo.findOne({
+      where: { phone: normalizedPhone },
+    });
+    if (existing) {
+      throw new ConflictException(
+        'Số điện thoại này đã được đăng ký. Vui lòng đăng nhập.',
+      );
+    }
+
+    const citizenRole = await this.roleRepo.findOne({
+      where: { name: RoleName.CITIZEN },
+    });
+    if (!citizenRole) {
+      throw new NotFoundException(
+        'Chưa khởi tạo vai trò CITIZEN trong hệ thống. Hãy chạy seed trước.',
+      );
+    }
+
+    const created = this.userRepo.create({
+      roleId: citizenRole.id,
+      role: citizenRole,
+      departmentId: null,
+      fullName: dto.fullName?.trim() || 'Người dân Đồng Nai',
+      phone: normalizedPhone,
+      passwordHash: null,
+      ward: dto.ward?.trim() || 'Phường Trấn Biên',
+      wardId: null,
+      largeTextMode: false,
+      isActive: true,
+    });
+    const saved = await this.userRepo.save(created);
+    saved.role = citizenRole;
+
+    return this.buildAuthResponse(saved);
   }
 
   async demoSwitch(dto: DemoSwitchDto): Promise<AuthResponseDto> {

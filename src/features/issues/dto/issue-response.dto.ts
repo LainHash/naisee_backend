@@ -126,6 +126,23 @@ export class IssueVerificationSummaryDto {
   volunteerLabel: string | null;
 }
 
+export class IssueSupportEvidenceDto {
+  publicId: string;
+  photo: string;
+  note: string | null;
+  submittedAt: Date;
+  actorLabel: string;
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+  isInitial: boolean;
+}
+
+export class IssueSupplementDto {
+  text: string;
+  submittedAt: Date;
+}
+
 export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   intakeNote: string | null;
   resolutionNote: string | null;
@@ -136,6 +153,8 @@ export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   timeline: IssueTimelineItemDto[];
   latestVerification: IssueVerificationSummaryDto | null;
   feedbackSummary: FeedbackSummaryDto;
+  supportEvidence?: IssueSupportEvidenceDto[];
+  supplement?: IssueSupplementDto | null;
 }
 
 export class StaffIssueItemDto extends PublicIssueSummaryDto {

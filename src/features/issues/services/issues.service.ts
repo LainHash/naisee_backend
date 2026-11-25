@@ -23,6 +23,8 @@ import { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { CreateIssueDto } from '../dto/create-issue.dto.js';
 import type {
   FeedbackSummaryDto,
+  IssueSupplementDto,
+  IssueSupportEvidenceDto,
   IssueVerificationSummaryDto,
   MapPointsResponseDto,
   MyIssueItemDto,
@@ -37,6 +39,7 @@ import type {
   QueryMapPointsDto,
   QueryMyIssuesDto,
 } from '../dto/query-issues.dto.js';
+import type { AddIssueEvidenceDto } from '../dto/staff-issues.dto.js';
 import { Issue } from '../entities/issue.entity.js';
 import { ProgressUpdate } from '../entities/progress-update.entity.js';
 import { Report } from '../entities/report.entity.js';
@@ -303,7 +306,12 @@ export class IssuesService {
         category: true,
         assignedDepartment: true,
         wardUnit: true,
-        media: true,
+        media: {
+          report: true,
+          uploadedBy: {
+            role: true,
+          },
+        },
         progressUpdates: {
           actor: {
             role: true,
@@ -364,6 +372,51 @@ export class IssuesService {
     const latestVerification = this.buildLatestVerification(issue);
     const feedbackSummary = this.buildFeedbackSummary(issue);
 
+    const sortedMedia = [...(issue.media ?? [])].sort(
+      (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+    );
+    const supportEvidence: IssueSupportEvidenceDto[] = sortedMedia
+      .filter(
+        (item) =>
+          item.stage === MediaStage.BEFORE &&
+          (item.report?.reportType === ReportType.ME_TOO ||
+            item.caption?.startsWith('Ảnh bổ sung') === true ||
+            (item.reportId === null && item.verificationId === null)),
+      )
+      .map((item) => {
+        const uploaderRole = item.uploadedBy?.role?.name ?? null;
+        return {
+          publicId: item.publicId,
+          photo: item.url,
+          note: item.caption ?? null,
+          submittedAt: item.createdAt,
+          actorLabel: uploaderRole
+            ? ACTOR_LABEL_BY_ROLE[uploaderRole]
+            : 'Người dân',
+          latitude: item.report?.latitude ?? null,
+          longitude: item.report?.longitude ?? null,
+          address: item.report?.addressText ?? null,
+          isInitial: item.report?.reportType === ReportType.INITIAL,
+        };
+      });
+
+    const latestSupplementUpdate = [...(issue.progressUpdates ?? [])]
+      .filter(
+        (update) =>
+          update.actionType === TimelineAction.PROGRESS_NOTE &&
+          update.content.startsWith('Người dân đã bổ sung thông tin:'),
+      )
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+
+    const supplement: IssueSupplementDto | null = latestSupplementUpdate
+      ? {
+          text: latestSupplementUpdate.content
+            .replace(/^Người dân đã bổ sung thông tin:\s*/, '')
+            .trim(),
+          submittedAt: latestSupplementUpdate.createdAt,
+        }
+      : null;
+
     return Object.assign(summary, {
       intakeNote: issue.intakeNote,
       resolutionNote: issue.resolutionNote,
@@ -374,6 +427,8 @@ export class IssuesService {
       timeline,
       latestVerification,
       feedbackSummary,
+      supportEvidence,
+      supplement,
     });
   }
 
@@ -665,6 +720,7 @@ export class IssuesService {
     identifier: string,
     user: AuthenticatedUser,
     content: string,
+    imageUrls?: string[],
   ): Promise<PublicIssueDetailDto> {
     const issue = await this.issueRepo.findOne({
       where: this.buildIdentifierWhere(identifier),
@@ -689,6 +745,7 @@ export class IssuesService {
     const trimmed = content.trim();
     await this.issueRepo.manager.transaction(async (manager) => {
       const txIssueRepo = manager.getRepository(Issue);
+      const txMediaRepo = manager.getRepository(IssueMedia);
       const txProgressRepo = manager.getRepository(ProgressUpdate);
 
       const previousStage = issue.stage;
@@ -701,6 +758,20 @@ export class IssuesService {
       issue.stage = WorkflowStage.RECEIVED;
       await txIssueRepo.save(issue);
 
+      if (imageUrls && imageUrls.length > 0) {
+        await txMediaRepo.save(
+          imageUrls.map((url, idx) =>
+            txMediaRepo.create({
+              issueId: issue.id,
+              uploadedById: user.id,
+              stage: MediaStage.BEFORE,
+              url,
+              caption: `Ảnh bổ sung thông tin #${idx + 1}: ${trimmed}`,
+            }),
+          ),
+        );
+      }
+
       await txProgressRepo.save(
         txProgressRepo.create({
           issueId: issue.id,
@@ -711,6 +782,70 @@ export class IssuesService {
           previousStage,
           newStage: WorkflowStage.RECEIVED,
           content: `Người dân đã bổ sung thông tin: ${trimmed}`,
+          isPublic: true,
+        }),
+      );
+    });
+
+    return this.findPublicDetail(issue.publicId);
+  }
+
+  async addEvidence(
+    identifier: string,
+    user: AuthenticatedUser,
+    dto: AddIssueEvidenceDto,
+  ): Promise<PublicIssueDetailDto> {
+    const issue = await this.issueRepo.findOne({
+      where: this.buildIdentifierWhere(identifier),
+    });
+
+    if (!issue || !issue.isPublic || issue.isDuplicate) {
+      throw new NotFoundException(`Không tìm thấy hồ sơ phản ánh ${identifier}`);
+    }
+
+    if (
+      issue.status === IssueStatus.RESOLVED ||
+      issue.status === IssueStatus.REJECTED ||
+      issue.stage === WorkflowStage.NOT_ACCEPTED
+    ) {
+      throw new BadRequestException(
+        'Hồ sơ này đã đóng hoặc không tiếp nhận, không thể bổ sung ảnh.',
+      );
+    }
+
+    const trimmedNote = dto.note?.trim();
+    const caption = trimmedNote
+      ? `Ảnh bổ sung từ người dân: ${trimmedNote}`
+      : 'Ảnh bổ sung hiện trường từ người dân';
+
+    await this.issueRepo.manager.transaction(async (manager) => {
+      const txMediaRepo = manager.getRepository(IssueMedia);
+      const txProgressRepo = manager.getRepository(ProgressUpdate);
+
+      await txMediaRepo.save(
+        dto.imageUrls.map((url) =>
+          txMediaRepo.create({
+            issueId: issue.id,
+            uploadedById: user.id,
+            stage: MediaStage.BEFORE,
+            url,
+            caption,
+          }),
+        ),
+      );
+
+      await txProgressRepo.save(
+        txProgressRepo.create({
+          issueId: issue.id,
+          actorId: user.id,
+          actionType: TimelineAction.PROGRESS_NOTE,
+          fromStatus: issue.status,
+          toStatus: issue.status,
+          previousStage: issue.stage,
+          newStage: issue.stage,
+          content: trimmedNote
+            ? `Người dân đã bổ sung ảnh hiện trường: ${trimmedNote}`
+            : `Người dân đã bổ sung ${dto.imageUrls.length} ảnh hiện trường mới.`,
           isPublic: true,
         }),
       );

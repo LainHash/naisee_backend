@@ -13,6 +13,7 @@ import {
 } from './dto/auth-response.dto.js';
 import { DemoSwitchDto } from './dto/demo-switch.dto.js';
 import { LoginDto } from './dto/login.dto.js';
+import { RegisterDto } from './dto/register.dto.js';
 import { UpdatePreferencesDto } from './dto/update-preferences.dto.js';
 
 @ApiTags('auth')
@@ -25,6 +26,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Đăng nhập bằng SĐT (mật khẩu tùy chọn cho tài khoản demo)' })
   login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Post('auth/register')
+  @ApiOperation({ summary: 'Đăng ký nhanh tài khoản Công dân bằng SĐT (OTP onboarding)' })
+  register(@Body() dto: RegisterDto): Promise<AuthResponseDto> {
+    return this.authService.register(dto);
   }
 
   @Public()
