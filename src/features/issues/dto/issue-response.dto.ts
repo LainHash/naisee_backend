@@ -146,3 +146,25 @@ export class StaffIssueItemDto extends PublicIssueSummaryDto {
 export class StaffIssueDetailDto extends PublicIssueDetailDto {
   priorityReason: string | null;
 }
+
+export class MapIssuePointDto {
+  publicId: string;
+  code: string;
+  title: string;
+  status: IssueStatus;
+  stage: WorkflowStage;
+  priority: Priority;
+  latitude: number;
+  longitude: number;
+  addressText: string;
+  ward: string;
+  reportCount: number;
+  categoryCode: string;
+  categoryName: string;
+  updatedAt: Date;
+}
+
+export class MapPointsResponseDto {
+  total: number;
+  points: MapIssuePointDto[];
+}

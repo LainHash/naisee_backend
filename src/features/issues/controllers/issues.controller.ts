@@ -8,6 +8,7 @@ import { RoleName } from '../../../common/enums/domain.enums.js';
 import type { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface.js';
 import { CreateIssueDto } from '../dto/create-issue.dto.js';
 import {
+  MapPointsResponseDto,
   MyIssueItemDto,
   NearbyIssueItemDto,
   PublicIssueDetailDto,
@@ -15,7 +16,11 @@ import {
 } from '../dto/issue-response.dto.js';
 import { MeTooIssueDto } from '../dto/me-too-issue.dto.js';
 import { NearbyIssuesQueryDto } from '../dto/nearby-issues.dto.js';
-import { QueryIssuesDto, QueryMyIssuesDto } from '../dto/query-issues.dto.js';
+import {
+  QueryIssuesDto,
+  QueryMapPointsDto,
+  QueryMyIssuesDto,
+} from '../dto/query-issues.dto.js';
 import { SupplementIssueDto } from '../dto/staff-issues.dto.js';
 import { IssuesService } from '../services/issues.service.js';
 
@@ -34,6 +39,18 @@ export class IssuesController {
     @Query() query: NearbyIssuesQueryDto,
   ): Promise<NearbyIssueItemDto[]> {
     return this.issuesService.findNearby(query);
+  }
+
+  @Public()
+  @Get('map-points')
+  @ApiOperation({
+    summary:
+      'Danh sách tọa độ nhẹ cho bản đồ MapLibre GL JS (hỗ trợ lọc & bbox, ẩn PII)',
+  })
+  findMapPoints(
+    @Query() query: QueryMapPointsDto,
+  ): Promise<MapPointsResponseDto> {
+    return this.issuesService.findMapPoints(query);
   }
 
   @ApiBearerAuth()

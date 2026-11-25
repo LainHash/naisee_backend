@@ -121,14 +121,17 @@ describe('IssuesService (public & citizen flows)', () => {
 
   function createService(issues: Issue[] = [baseIssue]) {
     const qb = {
+      innerJoin: vi.fn().mockReturnThis(),
       innerJoinAndSelect: vi.fn().mockReturnThis(),
       leftJoinAndSelect: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       andWhere: vi.fn().mockReturnThis(),
       setParameter: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
       take: vi.fn().mockReturnThis(),
+      getCount: vi.fn().mockResolvedValue(issues.length),
       getMany: vi.fn().mockResolvedValue(issues),
       getManyAndCount: vi.fn().mockResolvedValue([issues, issues.length]),
     };
@@ -370,5 +373,29 @@ describe('IssuesService (public & citizen flows)', () => {
     expect(res.success).toBe(true);
     expect(res.data[0].myReportTypes).toEqual([ReportType.ME_TOO]);
     expect(res.data[0].intakeNote).toBe('Ưu tiên xử lý sớm trước mùa mưa');
+  });
+
+  it('returns lightweight map points with optional bbox filtering', async () => {
+    const { service, qb } = createService();
+
+    const res = await service.findMapPoints({
+      bbox: '106.80,10.90,106.90,11.00',
+      limit: 5000,
+    });
+
+    expect(res.total).toBe(1);
+    expect(res.points).toEqual([
+      expect.objectContaining({
+        publicId: 'issue-uuid-1',
+        code: 'HT-2026-001',
+        latitude: 10.9512,
+        longitude: 106.8245,
+        categoryCode: 'ROAD_SURFACE',
+      }),
+    ]);
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'issue.longitude BETWEEN :minLng AND :maxLng AND issue.latitude BETWEEN :minLat AND :maxLat',
+      { minLng: 106.8, maxLng: 106.9, minLat: 10.9, maxLat: 11 },
+    );
   });
 });
