@@ -195,6 +195,120 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
       .expect(400);
   });
 
+  it('enforces STAFF RBAC and DTO validation on /staff/issues endpoints', async () => {
+    await request(app.getHttpServer()).get('/api/v1/staff/issues').expect(401);
+
+    const citizenToken = await jwtService.signAsync({
+      sub: 1,
+      publicId: 'uuid-citizen',
+      role: RoleName.CITIZEN,
+      fullName: 'Cô/Chú Minh',
+      phone: '0901000001',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/issues')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+
+    const staffToken = await jwtService.signAsync({
+      sub: 2,
+      publicId: 'uuid-staff',
+      role: RoleName.STAFF,
+      fullName: 'Chị Lan',
+      phone: '0901000002',
+      ward: 'Phường Trấn Biên',
+      departmentId: 1,
+    });
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/issues/HT-2026-001/reject')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ rejectionReason: '' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/issues/HT-2026-001/merge')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ sourceIssuePublicIds: [] })
+      .expect(400);
+  });
+
+  it('enforces VOLUNTEER, STAFF & CITIZEN RBAC + DTO validation across Phases 9-11 endpoints', async () => {
+    const citizenToken = await jwtService.signAsync({
+      sub: 1,
+      publicId: 'uuid-citizen',
+      role: RoleName.CITIZEN,
+      fullName: 'Cô/Chú Minh',
+      phone: '0901000001',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+    const staffToken = await jwtService.signAsync({
+      sub: 2,
+      publicId: 'uuid-staff',
+      role: RoleName.STAFF,
+      fullName: 'Chị Lan',
+      phone: '0901000002',
+      ward: 'Phường Trấn Biên',
+      departmentId: 1,
+    });
+    const volunteerToken = await jwtService.signAsync({
+      sub: 3,
+      publicId: 'uuid-volunteer',
+      role: RoleName.VOLUNTEER,
+      fullName: 'Bạn Hùng',
+      phone: '0901000003',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+
+    // CITIZEN cannot access /volunteer/verifications or /staff/dashboard
+    await request(app.getHttpServer())
+      .get('/api/v1/volunteer/verifications')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/dashboard')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+
+    // VOLUNTEER cannot resolve issue or request verification or review feedback
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/issues/HT-2026-001/resolve')
+      .set('Authorization', `Bearer ${volunteerToken}`)
+      .send({ resolutionNote: 'Done', imageUrls: ['https://example.com/a.jpg'] })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/issues/HT-2026-001/verifications')
+      .set('Authorization', `Bearer ${volunteerToken}`)
+      .send({})
+      .expect(403);
+
+    // Invalid outcome DTO -> 400
+    await request(app.getHttpServer())
+      .post('/api/v1/volunteer/verifications/non-existent/submit')
+      .set('Authorization', `Bearer ${volunteerToken}`)
+      .send({ outcome: 'INVALID_OUTCOME' })
+      .expect(400);
+
+    // STAFF cannot submit citizen feedback -> 403
+    await request(app.getHttpServer())
+      .post('/api/v1/issues/HT-2026-001/feedback')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ isSatisfied: true })
+      .expect(403);
+
+    // Invalid reviewStatus DTO -> 400
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/feedbacks/fb-1/review')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ reviewStatus: 'WRONG' })
+      .expect(400);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
@@ -209,6 +323,21 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.paths?.['/api/v1/issues']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}/me-too']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/triage']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/reject']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/assign']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/merge']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/progress']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/resolve']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/verifications']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/volunteer/verifications']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/volunteer/verifications/{publicId}/claim']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/volunteer/verifications/{publicId}/submit']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/dashboard']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/dashboard/public']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/issues/{publicId}/feedback']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/feedbacks/{publicId}/review']).toBeDefined();
   });
 
   afterEach(async () => {

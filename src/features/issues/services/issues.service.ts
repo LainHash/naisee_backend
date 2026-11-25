@@ -21,6 +21,7 @@ import { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { CreateIssueDto } from '../dto/create-issue.dto.js';
 import type {
   FeedbackSummaryDto,
+  IssueVerificationSummaryDto,
   MyIssueItemDto,
   NearbyIssueItemDto,
   PublicIssueDetailDto,
@@ -173,6 +174,13 @@ export class IssuesService {
   }
 
   async findPublicDetail(identifier: string): Promise<PublicIssueDetailDto> {
+    return this.findDetailByIdentifier(identifier, false);
+  }
+
+  async findDetailByIdentifier(
+    identifier: string,
+    allowNonPublic = false,
+  ): Promise<PublicIssueDetailDto> {
     const issue = await this.issueRepo.findOne({
       where: this.buildIdentifierWhere(identifier),
       relations: {
@@ -184,11 +192,12 @@ export class IssuesService {
             role: true,
           },
         },
+        verifications: true,
         feedbacks: true,
       },
     });
 
-    if (!issue || !issue.isPublic) {
+    if (!issue || (!allowNonPublic && !issue.isPublic)) {
       throw new NotFoundException(`Không tìm thấy hồ sơ phản ánh ${identifier}`);
     }
 
@@ -235,6 +244,7 @@ export class IssuesService {
         };
       });
 
+    const latestVerification = this.buildLatestVerification(issue);
     const feedbackSummary = this.buildFeedbackSummary(issue);
 
     return Object.assign(summary, {
@@ -245,6 +255,7 @@ export class IssuesService {
       aiConfidence: issue.aiConfidence,
       media,
       timeline,
+      latestVerification,
       feedbackSummary,
     });
   }
@@ -530,6 +541,64 @@ export class IssuesService {
     };
   }
 
+  async supplementIssue(
+    identifier: string,
+    user: AuthenticatedUser,
+    content: string,
+  ): Promise<PublicIssueDetailDto> {
+    const issue = await this.issueRepo.findOne({
+      where: this.buildIdentifierWhere(identifier),
+    });
+
+    if (!issue || issue.isDuplicate) {
+      throw new NotFoundException(`Không tìm thấy hồ sơ phản ánh ${identifier}`);
+    }
+
+    if (issue.createdById !== user.id) {
+      throw new BadRequestException(
+        'Chỉ người gửi phản ánh ban đầu mới có thể bổ sung thông tin hồ sơ này.',
+      );
+    }
+
+    if (issue.stage !== WorkflowStage.NEEDS_INFORMATION) {
+      throw new BadRequestException(
+        'Hồ sơ hiện không ở trạng thái yêu cầu bổ sung thông tin.',
+      );
+    }
+
+    const trimmed = content.trim();
+    await this.issueRepo.manager.transaction(async (manager) => {
+      const txIssueRepo = manager.getRepository(Issue);
+      const txProgressRepo = manager.getRepository(ProgressUpdate);
+
+      const previousStage = issue.stage;
+      const fromStatus = issue.status;
+
+      issue.description = issue.description
+        ? `${issue.description}\n\n[Bổ sung từ người dân]: ${trimmed}`
+        : trimmed;
+      issue.status = IssueStatus.RECEIVED;
+      issue.stage = WorkflowStage.RECEIVED;
+      await txIssueRepo.save(issue);
+
+      await txProgressRepo.save(
+        txProgressRepo.create({
+          issueId: issue.id,
+          actorId: user.id,
+          actionType: TimelineAction.PROGRESS_NOTE,
+          fromStatus,
+          toStatus: IssueStatus.RECEIVED,
+          previousStage,
+          newStage: WorkflowStage.RECEIVED,
+          content: `Người dân đã bổ sung thông tin: ${trimmed}`,
+          isPublic: true,
+        }),
+      );
+    });
+
+    return this.findPublicDetail(issue.publicId);
+  }
+
   computeIsOverdue(issue: Issue, now = new Date()): boolean {
     return (
       issue.dueAt !== null &&
@@ -539,7 +608,7 @@ export class IssuesService {
     );
   }
 
-  private buildIdentifierWhere(
+  buildIdentifierWhere(
     identifier: string,
   ): { publicId: string } | { code: string } {
     const trimmed = identifier.trim();
@@ -548,7 +617,7 @@ export class IssuesService {
       : { code: trimmed.toUpperCase() };
   }
 
-  private async resolveCategory(
+  async resolveCategory(
     categoryPublicId?: string,
     categoryCode?: string,
     required = true,
@@ -592,7 +661,7 @@ export class IssuesService {
     });
   }
 
-  private toPublicSummary(issue: Issue, now: Date): PublicIssueSummaryDto {
+  toPublicSummary(issue: Issue, now = new Date()): PublicIssueSummaryDto {
     const assignedUnit = issue.assignedDepartment?.name ?? null;
 
     return {
@@ -640,6 +709,31 @@ export class IssuesService {
     };
   }
 
+  private buildLatestVerification(
+    issue: Issue,
+  ): IssueVerificationSummaryDto | null {
+    const list = [...(issue.verifications ?? [])].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    const latest = list[0];
+    if (!latest) return null;
+
+    return {
+      publicId: latest.publicId,
+      status: latest.status,
+      instruction: latest.instruction,
+      dueAt: latest.dueAt,
+      outcome: latest.outcome,
+      isIssueConfirmed: latest.isIssueConfirmed,
+      verifiedLatitude: latest.verifiedLatitude,
+      verifiedLongitude: latest.verifiedLongitude,
+      safetyRiskNote: latest.safetyRiskNote,
+      resultNote: latest.resultNote,
+      completedAt: latest.completedAt,
+      volunteerLabel: latest.volunteerId ? 'Thanh niên tình nguyện' : null,
+    };
+  }
+
   private buildFeedbackSummary(issue: Issue): FeedbackSummaryDto {
     const feedbacks = [...(issue.feedbacks ?? [])].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -667,8 +761,10 @@ export class IssuesService {
         publicId: f.publicId,
         isSatisfied: f.isSatisfied,
         rating: f.rating,
+        reason: f.reason,
         comment: f.comment,
         reviewStatus: f.reviewStatus,
+        reviewNote: f.reviewNote,
         createdAt: f.createdAt,
       })),
     };

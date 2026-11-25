@@ -6,6 +6,8 @@ import {
   ReportType,
   RoleName,
   TimelineAction,
+  VerificationOutcome,
+  VerificationStatus,
   WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
 
@@ -93,8 +95,10 @@ export class PublicFeedbackItemDto {
   publicId: string;
   isSatisfied: boolean;
   rating: number | null;
+  reason: string | null;
   comment: string | null;
   reviewStatus: FeedbackReviewStatus;
+  reviewNote: string | null;
   createdAt: Date;
 }
 
@@ -106,6 +110,21 @@ export class FeedbackSummaryDto {
   items: PublicFeedbackItemDto[];
 }
 
+export class IssueVerificationSummaryDto {
+  publicId: string;
+  status: VerificationStatus;
+  instruction: string | null;
+  dueAt: Date | null;
+  outcome: VerificationOutcome | null;
+  isIssueConfirmed: boolean | null;
+  verifiedLatitude: number | null;
+  verifiedLongitude: number | null;
+  safetyRiskNote: string | null;
+  resultNote: string | null;
+  completedAt: Date | null;
+  volunteerLabel: string | null;
+}
+
 export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   intakeNote: string | null;
   resolutionNote: string | null;
@@ -114,5 +133,16 @@ export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   aiConfidence: number | null;
   media: IssueMediaItemDto[];
   timeline: IssueTimelineItemDto[];
+  latestVerification: IssueVerificationSummaryDto | null;
   feedbackSummary: FeedbackSummaryDto;
+}
+
+export class StaffIssueItemDto extends PublicIssueSummaryDto {
+  intakeNote: string | null;
+  rejectionReason: string | null;
+  priorityReason: string | null;
+}
+
+export class StaffIssueDetailDto extends PublicIssueDetailDto {
+  priorityReason: string | null;
 }

@@ -16,6 +16,7 @@ import {
 import { MeTooIssueDto } from '../dto/me-too-issue.dto.js';
 import { NearbyIssuesQueryDto } from '../dto/nearby-issues.dto.js';
 import { QueryIssuesDto, QueryMyIssuesDto } from '../dto/query-issues.dto.js';
+import { SupplementIssueDto } from '../dto/staff-issues.dto.js';
 import { IssuesService } from '../services/issues.service.js';
 
 @ApiTags('issues')
@@ -98,5 +99,20 @@ export class IssuesController {
     @Body() dto: MeTooIssueDto,
   ): Promise<PublicIssueDetailDto> {
     return this.issuesService.addMeToo(publicId, user, dto);
+  }
+
+  @ApiBearerAuth()
+  @Roles(RoleName.CITIZEN, RoleName.VOLUNTEER)
+  @Post(':publicId/supplement')
+  @ApiOperation({
+    summary:
+      'Người dân gửi thông tin bổ sung khi hồ sơ ở trạng thái needs_information',
+  })
+  supplementIssue(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: SupplementIssueDto,
+  ): Promise<PublicIssueDetailDto> {
+    return this.issuesService.supplementIssue(publicId, user, dto.content);
   }
 }
