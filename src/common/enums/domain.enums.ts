@@ -81,3 +81,8 @@ export enum FeedbackReviewStatus {
   ACKNOWLEDGED = 'ACKNOWLEDGED',
   REOPENED = 'REOPENED',
 }
+
+export enum AdministrativeUnitType {
+  WARD = 'WARD',
+  COMMUNE = 'COMMUNE',
+}

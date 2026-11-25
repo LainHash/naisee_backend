@@ -19,11 +19,14 @@ import { ProgressUpdate } from '../../../features/issues/entities/progress-updat
 import { Report } from '../../../features/issues/entities/report.entity.js';
 import { Department } from '../../../features/master-data/entities/department.entity.js';
 import { IssueCategory } from '../../../features/master-data/entities/issue-category.entity.js';
+import { Ward } from '../../../features/master-data/entities/ward.entity.js';
 import { IssueMedia } from '../../../features/media/entities/issue-media.entity.js';
 import { Verification } from '../../../features/verifications/entities/verification.entity.js';
+import { upsertWardsAndBackfill } from './ward-seed.helper.js';
 
 export interface SeedResult {
   skipped: boolean;
+  wards: number;
   roles: number;
   departments: number;
   categories: number;
@@ -260,11 +263,12 @@ export async function runSeed(
 ): Promise<SeedResult> {
   if (options.reset) {
     await dataSource.query(
-      'TRUNCATE TABLE feedbacks, verifications, issue_media, progress_updates, reports, issues, issue_categories, users, departments, roles RESTART IDENTITY CASCADE',
+      'TRUNCATE TABLE feedbacks, verifications, issue_media, progress_updates, reports, issues, issue_categories, users, departments, roles, wards RESTART IDENTITY CASCADE',
     );
   }
 
   return dataSource.transaction(async (manager) => {
+    const wardRepo = manager.getRepository(Ward);
     const roleRepo = manager.getRepository(Role);
     const deptRepo = manager.getRepository(Department);
     const catRepo = manager.getRepository(IssueCategory);
@@ -276,12 +280,18 @@ export async function runSeed(
     const verificationRepo = manager.getRepository(Verification);
     const feedbackRepo = manager.getRepository(Feedback);
 
+    await upsertWardsAndBackfill(manager);
+    const tranBienWard = await wardRepo.findOne({
+      where: { name: 'Phường Trấn Biên' },
+    });
+
     const existingDemoIssue = await issueRepo.findOne({
       where: { code: 'HT-2026-001' },
     });
     if (existingDemoIssue && !options.reset) {
       return {
         skipped: true,
+        wards: await wardRepo.count(),
         roles: await roleRepo.count(),
         departments: await deptRepo.count(),
         categories: await catRepo.count(),
@@ -400,6 +410,7 @@ export async function runSeed(
         fullName: 'Cô/Chú Minh',
         phone: '0901000001',
         ward: 'Phường Trấn Biên',
+        wardId: tranBienWard?.id ?? null,
         largeTextMode: false,
       }),
       userRepo.create({
@@ -408,24 +419,28 @@ export async function runSeed(
         fullName: 'Chị Lan – Cán bộ UBND Phường Trấn Biên',
         phone: '0901000002',
         ward: 'Phường Trấn Biên',
+        wardId: tranBienWard?.id ?? null,
       }),
       userRepo.create({
         roleId: volunteerRole.id,
         fullName: 'Bạn Hùng – Đoàn viên thanh niên',
         phone: '0901000003',
         ward: 'Phường Trấn Biên',
+        wardId: tranBienWard?.id ?? null,
       }),
       userRepo.create({
         roleId: citizenRole.id,
         fullName: 'Anh Tuấn – Cư dân KP2',
         phone: '0901000004',
         ward: 'Phường Trấn Biên',
+        wardId: tranBienWard?.id ?? null,
       }),
       userRepo.create({
         roleId: citizenRole.id,
         fullName: 'Chị Hoa – Cư dân KP3',
         phone: '0901000005',
         ward: 'Phường Trấn Biên',
+        wardId: tranBienWard?.id ?? null,
       }),
     ]);
 
@@ -522,6 +537,7 @@ export async function runSeed(
           longitude: spec.lng,
           addressText: spec.addressText,
           ward: 'Phường Trấn Biên',
+          wardId: tranBienWard?.id ?? null,
           thumbnailUrl: beforeImageUrl,
           reportCount: spec.reportCount,
           createdById: reporter.id,
@@ -736,6 +752,7 @@ export async function runSeed(
 
     return {
       skipped: false,
+      wards: await wardRepo.count(),
       roles: roles.length,
       departments: departments.length,
       categories: categories.length,

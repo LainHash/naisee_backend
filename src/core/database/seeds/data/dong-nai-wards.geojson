@@ -1,0 +1,513 @@
+{
+  "type": "FeatureCollection",
+  "name": "dong-nai-wards-nq1662-2025",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-TRAN-BIEN",
+        "name": "Phường Trấn Biên",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.812, 10.93],
+            [106.85, 10.93],
+            [106.85, 10.968],
+            [106.812, 10.968],
+            [106.812, 10.93]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-BIEN-HOA",
+        "name": "Phường Biên Hòa",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.785, 10.915],
+            [106.812, 10.915],
+            [106.812, 10.955],
+            [106.785, 10.955],
+            [106.785, 10.915]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-TAM-HIEP",
+        "name": "Phường Tam Hiệp",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.85, 10.93],
+            [106.88, 10.93],
+            [106.88, 10.97],
+            [106.85, 10.97],
+            [106.85, 10.93]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-LONG-BINH",
+        "name": "Phường Long Bình",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.88, 10.935],
+            [106.912, 10.935],
+            [106.912, 10.97],
+            [106.88, 10.97],
+            [106.88, 10.935]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-TRANG-DAI",
+        "name": "Phường Trảng Dài",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.845, 10.97],
+            [106.89, 10.97],
+            [106.89, 11.015],
+            [106.845, 11.015],
+            [106.845, 10.97]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-HO-NAI",
+        "name": "Phường Hố Nai",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.912, 10.945],
+            [106.955, 10.945],
+            [106.955, 10.985],
+            [106.912, 10.985],
+            [106.912, 10.945]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-LONG-HUNG",
+        "name": "Phường Long Hưng",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.825, 10.875],
+            [106.885, 10.875],
+            [106.885, 10.93],
+            [106.825, 10.93],
+            [106.825, 10.875]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-TAN-TRIEU",
+        "name": "Phường Tân Triều",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.805, 10.968],
+            [106.845, 10.968],
+            [106.845, 11.005],
+            [106.805, 11.005],
+            [106.805, 10.968]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-PHUOC-TAN",
+        "name": "Phường Phước Tân",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.905, 10.875],
+            [106.97, 10.875],
+            [106.97, 10.925],
+            [106.905, 10.925],
+            [106.905, 10.875]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-TAM-PHUOC",
+        "name": "Phường Tam Phước",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.875, 10.825],
+            [106.945, 10.825],
+            [106.945, 10.875],
+            [106.875, 10.875],
+            [106.875, 10.825]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-LONG-KHANH",
+        "name": "Phường Long Khánh",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [107.215, 10.92],
+            [107.255, 10.92],
+            [107.255, 10.96],
+            [107.215, 10.96],
+            [107.215, 10.92]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-BINH-LOC",
+        "name": "Phường Bình Lộc",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [107.215, 10.975],
+            [107.26, 10.975],
+            [107.26, 11.02],
+            [107.215, 11.02],
+            [107.215, 10.975]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-BAO-VINH",
+        "name": "Phường Bảo Vinh",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [107.255, 10.935],
+            [107.295, 10.935],
+            [107.295, 10.975],
+            [107.255, 10.975],
+            [107.255, 10.935]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-XUAN-LAP",
+        "name": "Phường Xuân Lập",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [107.145, 10.9],
+            [107.195, 10.9],
+            [107.195, 10.94],
+            [107.145, 10.94],
+            [107.145, 10.9]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-HANG-GON",
+        "name": "Phường Hàng Gòn",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [107.195, 10.855],
+            [107.245, 10.855],
+            [107.245, 10.9],
+            [107.195, 10.9],
+            [107.195, 10.855]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-CHON-THANH",
+        "name": "Phường Chơn Thành",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.585, 11.435],
+            [106.625, 11.435],
+            [106.625, 11.475],
+            [106.585, 11.475],
+            [106.585, 11.435]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-MINH-HUNG",
+        "name": "Phường Minh Hưng",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.625, 11.408],
+            [106.665, 11.408],
+            [106.665, 11.448],
+            [106.625, 11.448],
+            [106.625, 11.408]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-AN-LOC",
+        "name": "Phường An Lộc",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.585, 11.635],
+            [106.625, 11.635],
+            [106.625, 11.675],
+            [106.585, 11.675],
+            [106.585, 11.635]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-BINH-LONG",
+        "name": "Phường Bình Long",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.575, 11.675],
+            [106.62, 11.675],
+            [106.62, 11.715],
+            [106.575, 11.715],
+            [106.575, 11.675]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-DONG-XOAI",
+        "name": "Phường Đồng Xoài",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.815, 11.5],
+            [106.855, 11.5],
+            [106.855, 11.535],
+            [106.815, 11.535],
+            [106.815, 11.5]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-BINH-PHUOC",
+        "name": "Phường Bình Phước",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.855, 11.52],
+            [106.895, 11.52],
+            [106.895, 11.555],
+            [106.855, 11.555],
+            [106.855, 11.52]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-PHUOC-BINH",
+        "name": "Phường Phước Bình",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.95, 11.795],
+            [106.985, 11.795],
+            [106.985, 11.83],
+            [106.95, 11.83],
+            [106.95, 11.795]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "code": "DN-PHUOC-LONG",
+        "name": "Phường Phước Long",
+        "unitType": "WARD",
+        "provinceName": "Tỉnh Đồng Nai",
+        "isActive": true
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [106.985, 11.81],
+            [107.02, 11.81],
+            [107.02, 11.845],
+            [106.985, 11.845],
+            [106.985, 11.81]
+          ]
+        ]
+      }
+    }
+  ]
+}
+
