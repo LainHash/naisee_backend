@@ -81,7 +81,7 @@ describe('AiService', () => {
     expect(res.isMocked).toBe(true);
   });
 
-  it('uses Gemini Vision when GEMINI_API_KEY is configured and returns isMocked=false', async () => {
+  it('uses DeepSeek Vision when DEEPSEEK_API_KEY is configured and returns isMocked=false', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -92,19 +92,15 @@ describe('AiService', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
-          candidates: [
+          choices: [
             {
-              content: {
-                parts: [
-                  {
-                    text: JSON.stringify({
-                      categoryCode: 'STREET_LIGHT',
-                      confidence: 0.96,
-                      suggestedTitle: 'Trụ đèn số 12 tắt bóng hoàn toàn',
-                      suggestedPriority: 'HIGH',
-                    }),
-                  },
-                ],
+              message: {
+                content: JSON.stringify({
+                  categoryCode: 'STREET_LIGHT',
+                  confidence: 0.96,
+                  suggestedTitle: 'Trụ đèn số 12 tắt bóng hoàn toàn',
+                  suggestedPriority: 'HIGH',
+                }),
               },
             },
           ],
@@ -112,7 +108,7 @@ describe('AiService', () => {
       });
     vi.stubGlobal('fetch', fetchMock);
 
-    const service = createService({ GEMINI_API_KEY: 'test-gemini-key' });
+    const service = createService({ DEEPSEEK_API_KEY: 'test-deepseek-key' });
     const res = await service.classifyImage({
       imageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/img_99.jpg',
     });
@@ -134,7 +130,7 @@ describe('AiService', () => {
       vi.fn().mockRejectedValue(new Error('Network timeout')),
     );
 
-    const service = createService({ GEMINI_API_KEY: 'test-gemini-key' });
+    const service = createService({ DEEPSEEK_API_KEY: 'test-deepseek-key' });
     const res = await service.classifyImage({
       imageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/pothole.jpg',
     });
