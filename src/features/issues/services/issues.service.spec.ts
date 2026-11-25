@@ -161,7 +161,11 @@ describe('IssuesService (public & citizen flows)', () => {
 
     const manager = {
       transaction: vi.fn(
-        async (cb: (m: { getRepository: (e: unknown) => unknown }) => Promise<unknown>) =>
+        async (
+          cb: (m: {
+            getRepository: (e: { name?: string }) => unknown;
+          }) => Promise<unknown>,
+        ) =>
           cb({
             getRepository: (entity: { name?: string }) => {
               if (entity.name === 'Issue') return txIssueRepo;
