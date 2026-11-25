@@ -17,6 +17,10 @@ interface RuleMatch {
   confidence: number;
 }
 
+const DEEPSEEK_CHAT_COMPLETIONS_URL =
+  'https://api.deepseek.com/chat/completions';
+const DEFAULT_DEEPSEEK_VISION_MODEL = 'deepseek-flash';
+
 const CLASSIFICATION_RULES: RuleMatch[] = [
   {
     code: 'FLOODING',
@@ -86,10 +90,12 @@ export class AiService {
       );
     }
 
-    const geminiKey = this.configService.get<string>('GEMINI_API_KEY')?.trim();
-    if (geminiKey && this.isHttpUrl(dto.imageUrl)) {
-      const visionResult = await this.tryClassifyWithGemini(
-        geminiKey,
+    const deepseekKey = this.configService
+      .get<string>('DEEPSEEK_API_KEY')
+      ?.trim();
+    if (deepseekKey && this.isHttpUrl(dto.imageUrl)) {
+      const visionResult = await this.tryClassifyWithDeepSeek(
+        deepseekKey,
         dto,
         categories,
       );
@@ -101,7 +107,7 @@ export class AiService {
     return this.classifyByRules(dto, categories);
   }
 
-  private async tryClassifyWithGemini(
+  private async tryClassifyWithDeepSeek(
     apiKey: string,
     dto: ClassifyImageDto,
     categories: IssueCategory[],
@@ -120,8 +126,8 @@ export class AiService {
       const base64Data = buffer.toString('base64');
 
       const model =
-        this.configService.get<string>('AI_VISION_MODEL')?.trim() ||
-        'gemini-2.5-flash';
+        this.configService.get<string>('DEEPSEEK_VISION_MODEL')?.trim() ||
+        DEFAULT_DEEPSEEK_VISION_MODEL;
       const categoryCodes = categories.map((c) => c.code).join(', ');
       const prompt = [
         'Phân tích ảnh sự cố hạ tầng đô thị tại Việt Nam và trả về JSON thuần (không markdown):',
@@ -131,23 +137,30 @@ export class AiService {
         .filter(Boolean)
         .join('\n');
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-      const apiRes = await fetch(endpoint, {
+      const apiRes = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
         signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
-          contents: [
+          model,
+          thinking: { type: 'disabled' },
+          response_format: { type: 'json_object' },
+          max_tokens: 512,
+          messages: [
             {
-              parts: [
-                { text: prompt },
-                { inlineData: { mimeType: contentType, data: base64Data } },
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:${contentType};base64,${base64Data}` },
+                },
               ],
             },
           ],
-          generationConfig: {
-            responseMimeType: 'application/json',
-          },
         }),
       });
 
@@ -156,16 +169,20 @@ export class AiService {
       }
 
       const json = (await apiRes.json()) as {
-        candidates?: Array<{
-          content?: { parts?: Array<{ text?: string }> };
+        choices?: Array<{
+          message?: { content?: string };
         }>;
       };
-      const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+      const rawText = json.choices?.[0]?.message?.content;
       if (!rawText) {
         return null;
       }
 
-      const parsed = JSON.parse(rawText) as VisionJsonPayload;
+      const trimmed = rawText.trim();
+      const normalized = trimmed.startsWith('```')
+        ? trimmed.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+        : trimmed;
+      const parsed = JSON.parse(normalized) as VisionJsonPayload;
       const matchedCategory = categories.find(
         (c) => c.code === parsed.categoryCode,
       );
@@ -198,7 +215,7 @@ export class AiService {
       };
     } catch (error) {
       this.logger.warn(
-        `Gemini Vision fallback sang rule-based: ${
+        `DeepSeek Vision fallback sang rule-based: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
@@ -245,4 +262,3 @@ export class AiService {
     return url.startsWith('http://') || url.startsWith('https://');
   }
 }
-
