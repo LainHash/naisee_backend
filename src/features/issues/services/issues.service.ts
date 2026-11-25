@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
+import type { Repository, SelectQueryBuilder } from 'typeorm';
 import type { ApiResponseDto } from '../../../common/dto/api-response.dto.js';
 import { IssueStatus, RoleName } from '../../../common/enums/domain.enums.js';
 import { IssueCategory } from '../../master-data/entities/issue-category.entity.js';
@@ -17,6 +17,11 @@ import { IssueGeoService } from './issue-geo.service.js';
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const PUBLIC_ALLOWED_STATUSES = [
+  IssueStatus.IN_PROGRESS,
+  IssueStatus.RESOLVED,
+];
 
 const ACTOR_LABEL_BY_ROLE: Record<RoleName, string> = {
   [RoleName.CITIZEN]: 'Người dân',
@@ -43,9 +48,15 @@ export class IssuesService {
       .innerJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.assignedDepartment', 'department')
       .where('issue.isPublic = :isPublic', { isPublic: true })
-      .andWhere('issue.status != :rejectedStatus', {
+      .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
+
+    if (query.forDuplicateCheck) {
+      qb.andWhere('issue.status != :rejectedStatus', {
         rejectedStatus: IssueStatus.REJECTED,
       });
+    } else {
+      this.applyPublicPortalVisibility(qb);
+    }
 
     if (query.categoryPublicId) {
       qb.andWhere('category.publicId = :categoryPublicId', {
@@ -91,9 +102,9 @@ export class IssuesService {
       .innerJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.assignedDepartment', 'department')
       .where('issue.isPublic = :isPublic', { isPublic: true })
-      .andWhere('issue.status != :rejectedStatus', {
-        rejectedStatus: IssueStatus.REJECTED,
-      });
+      .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
+
+    this.applyPublicPortalVisibility(qb);
 
     if (query.categoryPublicId) {
       qb.andWhere('category.publicId = :categoryPublicId', {
@@ -196,18 +207,22 @@ export class IssuesService {
           actionType: update.actionType,
           fromStatus: update.fromStatus,
           toStatus: update.toStatus,
+          previousStage: update.previousStage,
+          newStage: update.newStage,
           content: update.content,
           actorRole,
           actorLabel: actorRole
             ? ACTOR_LABEL_BY_ROLE[actorRole]
             : 'Hệ thống',
           createdAt: update.createdAt,
+          timestamp: update.createdAt,
         };
       });
 
     const feedbackSummary = this.buildFeedbackSummary(issue);
 
     return Object.assign(summary, {
+      intakeNote: issue.intakeNote,
       resolutionNote: issue.resolutionNote,
       rejectionReason: issue.rejectionReason,
       aiSuggestedCategoryCode,
@@ -227,13 +242,24 @@ export class IssuesService {
     );
   }
 
+  private applyPublicPortalVisibility(qb: SelectQueryBuilder<Issue>): void {
+    qb.andWhere('issue.publicReviewVerified = :publicReviewVerified', {
+      publicReviewVerified: true,
+    }).andWhere('issue.status IN (:...publicStatuses)', {
+      publicStatuses: PUBLIC_ALLOWED_STATUSES,
+    });
+  }
+
   private toPublicSummary(issue: Issue, now: Date): PublicIssueSummaryDto {
+    const assignedUnit = issue.assignedDepartment?.name ?? null;
+
     return {
       publicId: issue.publicId,
       code: issue.code,
       title: issue.title,
       description: issue.description,
       status: issue.status,
+      stage: issue.stage,
       priority: issue.priority,
       suggestedPriority: issue.suggestedPriority,
       latitude: issue.latitude,
@@ -242,10 +268,17 @@ export class IssuesService {
       ward: issue.ward,
       thumbnailUrl: issue.thumbnailUrl,
       reportCount: issue.reportCount,
+      assignedUnit,
       dueAt: issue.dueAt,
+      deadlineAt: issue.dueAt,
       resolvedAt: issue.resolvedAt,
       isOverdue: this.computeIsOverdue(issue, now),
+      isDuplicate: issue.isDuplicate,
       needsReopenReview: issue.needsReopenReview,
+      publicReview: {
+        verified: issue.publicReviewVerified,
+        approvedAt: issue.publicApprovedAt,
+      },
       category: {
         publicId: issue.category.publicId,
         code: issue.category.code,

@@ -9,6 +9,7 @@ import {
   TimelineAction,
   VerificationOutcome,
   VerificationStatus,
+  WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
 import { Role } from '../../../features/auth/entities/role.entity.js';
 import { User } from '../../../features/auth/entities/user.entity.js';
@@ -483,6 +484,23 @@ export async function runSeed(
           ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
           : null;
 
+      let stage = WorkflowStage.UNASSIGNED;
+      if (spec.code === 'HT-2026-001') {
+        stage = WorkflowStage.WORK_ACCEPTED;
+      } else if (spec.status === IssueStatus.RECEIVED) {
+        stage = WorkflowStage.RECEIVED;
+      } else if (spec.status === IssueStatus.VERIFYING) {
+        stage = WorkflowStage.VERIFICATION_REQUESTED;
+      } else if (spec.status === IssueStatus.IN_PROGRESS) {
+        stage = WorkflowStage.DEPARTMENT_ASSIGNED;
+      } else if (spec.status === IssueStatus.RESOLVED) {
+        stage = WorkflowStage.COMPLETED;
+      }
+
+      const isPublicApproved =
+        spec.status === IssueStatus.IN_PROGRESS ||
+        spec.status === IssueStatus.RESOLVED;
+
       const issue = await issueRepo.save(
         issueRepo.create({
           code: spec.code,
@@ -490,6 +508,7 @@ export async function runSeed(
           description: spec.description,
           categoryId: category.id,
           status: spec.status,
+          stage,
           priority: spec.priority,
           suggestedPriority: spec.priority,
           priorityReason:
@@ -507,7 +526,13 @@ export async function runSeed(
           assignedById,
           dueAt,
           resolvedAt,
+          intakeNote:
+            spec.code === 'HT-2026-001'
+              ? 'Đã xác minh thực địa qua đoàn viên thanh niên, giao Đội duy tu đường bộ xử lý ưu tiên cao.'
+              : null,
           resolutionNote,
+          publicReviewVerified: isPublicApproved,
+          publicApprovedAt: isPublicApproved ? createdAt : null,
           aiSuggestedCategoryId: category.id,
           aiConfidence: 0.92,
           createdAt,
@@ -547,6 +572,7 @@ export async function runSeed(
           actorId: reporter.id,
           actionType: TimelineAction.CREATED,
           toStatus: IssueStatus.PENDING_REVIEW,
+          newStage: WorkflowStage.UNASSIGNED,
           content: `Người dân đã gửi phản ánh ${spec.code}.`,
           isPublic: true,
           createdAt,
@@ -590,6 +616,11 @@ export async function runSeed(
             actionType: TimelineAction.ASSIGNED,
             fromStatus: IssueStatus.PENDING_REVIEW,
             toStatus: IssueStatus.IN_PROGRESS,
+            previousStage: WorkflowStage.RECEIVED,
+            newStage:
+              spec.code === 'HT-2026-001'
+                ? WorkflowStage.WORK_ACCEPTED
+                : WorkflowStage.DEPARTMENT_ASSIGNED,
             content: `Đã giao ${defaultDept.name} xử lý.`,
             isPublic: true,
           }),
@@ -615,6 +646,8 @@ export async function runSeed(
             actionType: TimelineAction.VERIFICATION_REQUESTED,
             fromStatus: IssueStatus.RECEIVED,
             toStatus: IssueStatus.VERIFYING,
+            previousStage: WorkflowStage.RECEIVED,
+            newStage: WorkflowStage.VERIFICATION_REQUESTED,
             content: 'Đã chuyển yêu cầu xác minh cho đội thanh niên tình nguyện.',
             isPublic: true,
           }),
@@ -629,6 +662,8 @@ export async function runSeed(
             actionType: TimelineAction.RESOLVED,
             fromStatus: IssueStatus.IN_PROGRESS,
             toStatus: IssueStatus.RESOLVED,
+            previousStage: WorkflowStage.WORK_ACCEPTED,
+            newStage: WorkflowStage.COMPLETED,
             content: 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.',
             isPublic: true,
             createdAt: resolvedAt,

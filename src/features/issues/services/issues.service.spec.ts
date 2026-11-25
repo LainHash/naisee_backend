@@ -6,6 +6,7 @@ import {
   Priority,
   RoleName,
   TimelineAction,
+  WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
 import type { Issue } from '../entities/issue.entity.js';
 import { IssueGeoService } from './issue-geo.service.js';
@@ -28,6 +29,7 @@ describe('IssuesService (public queries)', () => {
       slaHours: 72,
     },
     status: IssueStatus.IN_PROGRESS,
+    stage: WorkflowStage.WORK_ACCEPTED,
     priority: Priority.HIGH,
     suggestedPriority: Priority.HIGH,
     latitude: 10.9512,
@@ -46,9 +48,14 @@ describe('IssuesService (public queries)', () => {
     },
     dueAt: new Date('2020-01-01T00:00:00.000Z'), // overdue
     resolvedAt: null,
+    intakeNote: 'Ưu tiên xử lý sớm trước mùa mưa',
     resolutionNote: null,
     rejectionReason: null,
     isPublic: true,
+    publicReviewVerified: true,
+    publicApprovedAt: new Date('2026-11-23T08:00:00.000Z'),
+    isDuplicate: false,
+    duplicateOfId: null,
     needsReopenReview: false,
     aiSuggestedCategoryId: 1,
     aiConfidence: 0.92,
@@ -67,6 +74,8 @@ describe('IssuesService (public queries)', () => {
         actionType: TimelineAction.CREATED,
         fromStatus: null,
         toStatus: IssueStatus.PENDING_REVIEW,
+        previousStage: null,
+        newStage: WorkflowStage.UNASSIGNED,
         content: 'Đã gửi phản ánh',
         isPublic: true,
         actor: {
@@ -120,23 +129,48 @@ describe('IssuesService (public queries)', () => {
         new IssueGeoService(),
       ),
       issueRepo,
+      qb,
     };
   }
 
-  it('finds nearby issues sorted by distanceMeters and computes isOverdue', async () => {
-    const { service } = createService();
+  it('applies publicReview & IN_PROGRESS/RESOLVED filter in public nearby mode', async () => {
+    const { service, qb } = createService();
 
     const results = await service.findNearby({
       lat: 10.9512,
       lng: 106.8245,
       radiusMeters: 500,
+      forDuplicateCheck: false,
       limit: 10,
     });
 
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'issue.publicReviewVerified = :publicReviewVerified',
+      { publicReviewVerified: true },
+    );
     expect(results).toHaveLength(1);
-    expect(results[0].code).toBe('HT-2026-001');
+    expect(results[0].stage).toBe(WorkflowStage.WORK_ACCEPTED);
+    expect(results[0].publicReview.verified).toBe(true);
+    expect(results[0].assignedUnit).toBe('Đội duy tu đường bộ');
     expect(results[0].distanceMeters).toBe(0);
     expect(results[0].isOverdue).toBe(true);
+  });
+
+  it('allows pending issues when forDuplicateCheck=true', async () => {
+    const { service, qb } = createService();
+
+    await service.findNearby({
+      lat: 10.9512,
+      lng: 106.8245,
+      radiusMeters: 200,
+      forDuplicateCheck: true,
+      limit: 10,
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'issue.status != :rejectedStatus',
+      { rejectedStatus: IssueStatus.REJECTED },
+    );
   });
 
   it('returns paginated public list without PII', async () => {
@@ -154,7 +188,7 @@ describe('IssuesService (public queries)', () => {
     expect(JSON.stringify(res)).not.toContain('0901000001');
   });
 
-  it('returns public detail by code and strips citizen PII from timeline', async () => {
+  it('returns public detail with stage, previousStage/newStage, timestamp and zero PII', async () => {
     const { service, issueRepo } = createService();
 
     const detail = await service.findPublicDetail('ht-2026-001');
@@ -162,8 +196,13 @@ describe('IssuesService (public queries)', () => {
     expect(issueRepo.findOne).toHaveBeenCalledWith(
       expect.objectContaining({ where: { code: 'HT-2026-001' } }),
     );
+    expect(detail.stage).toBe(WorkflowStage.WORK_ACCEPTED);
+    expect(detail.intakeNote).toBe('Ưu tiên xử lý sớm trước mùa mưa');
+    expect(detail.timeline[0].previousStage).toBeNull();
+    expect(detail.timeline[0].newStage).toBe(WorkflowStage.UNASSIGNED);
+    expect(detail.timeline[0].timestamp).toEqual(detail.timeline[0].createdAt);
     expect(detail.timeline[0].actorLabel).toBe('Người dân');
-    expect(detail.feedbackSummary.averageRating).toBe(5);
+
     const serialized = JSON.stringify(detail);
     expect(serialized).not.toContain('0901000001');
     expect(serialized).not.toContain('Cô/Chú Minh');
@@ -177,4 +216,3 @@ describe('IssuesService (public queries)', () => {
     );
   });
 });
-

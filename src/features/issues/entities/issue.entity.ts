@@ -7,7 +7,11 @@ import {
   OneToMany,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import { IssueStatus, Priority } from '../../../common/enums/domain.enums.js';
+import {
+  IssueStatus,
+  Priority,
+  WorkflowStage,
+} from '../../../common/enums/domain.enums.js';
 import { BaseCoreEntity } from '../../../core/database/base.entity.js';
 import { User } from '../../auth/entities/user.entity.js';
 import type { Feedback } from '../../feedback/entities/feedback.entity.js';
@@ -44,6 +48,14 @@ export class Issue extends BaseCoreEntity {
     default: IssueStatus.PENDING_REVIEW,
   })
   status: IssueStatus;
+
+  @Index()
+  @Column({
+    type: 'enum',
+    enum: WorkflowStage,
+    default: WorkflowStage.UNASSIGNED,
+  })
+  stage: WorkflowStage;
 
   @Column({ type: 'enum', enum: Priority, default: Priority.MEDIUM })
   priority: Priority;
@@ -102,6 +114,9 @@ export class Issue extends BaseCoreEntity {
   resolvedAt: Date | null;
 
   @Column({ type: 'text', nullable: true })
+  intakeNote: string | null;
+
+  @Column({ type: 'text', nullable: true })
   resolutionNote: string | null;
 
   @Column({ type: 'text', nullable: true })
@@ -109,6 +124,20 @@ export class Issue extends BaseCoreEntity {
 
   @Column({ type: 'boolean', default: true })
   isPublic: boolean;
+
+  @Index()
+  @Column({ type: 'boolean', default: false })
+  publicReviewVerified: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  publicApprovedAt: Date | null;
+
+  @Index()
+  @Column({ type: 'boolean', default: false })
+  isDuplicate: boolean;
+
+  @Column({ type: 'int', nullable: true })
+  duplicateOfId: number | null;
 
   @Column({ type: 'boolean', default: false })
   needsReopenReview: boolean;

@@ -14,6 +14,22 @@ export enum IssueStatus {
   REJECTED = 'REJECTED',
 }
 
+export enum WorkflowStage {
+  UNASSIGNED = 'unassigned',
+  RECEIVED = 'received',
+  NEEDS_INFORMATION = 'needs_information',
+  NOT_ACCEPTED = 'not_accepted',
+  VERIFICATION_REQUESTED = 'verification_requested',
+  VOLUNTEER_ASSIGNED = 'volunteer_assigned',
+  VERIFICATION_SUBMITTED = 'verification_submitted',
+  DEPARTMENT_ASSIGNED = 'department_assigned',
+  WORK_ACCEPTED = 'work_accepted',
+  RESOLUTION_SUBMITTED = 'resolution_submitted',
+  RESOLUTION_REVIEW = 'resolution_review',
+  COMPLETED = 'completed',
+  REOPENED = 'reopened',
+}
+
 export enum Priority {
   LOW = 'LOW',
   MEDIUM = 'MEDIUM',

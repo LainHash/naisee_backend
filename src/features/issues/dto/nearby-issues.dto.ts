@@ -1,4 +1,6 @@
+import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNumber,
@@ -45,6 +47,15 @@ export class NearbyIssuesQueryDto {
   @IsEnum(IssueStatus)
   status?: IssueStatus;
 
+  /**
+   * Mặc định false (chỉ trả hồ sơ đủ điều kiện công khai publicReview.verified + in_progress/resolved).
+   * Truyền true khi dùng cho Bước 2 wizard gửi mới để phát hiện phản ánh trùng chưa duyệt công khai.
+   */
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  forDuplicateCheck: boolean = false;
+
   /** Số lượng kết quả tối đa (mặc định 30) */
   @IsOptional()
   @IsInt()
@@ -52,4 +63,3 @@ export class NearbyIssuesQueryDto {
   @Max(100)
   limit: number = 30;
 }
-

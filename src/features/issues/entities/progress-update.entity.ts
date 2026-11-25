@@ -10,6 +10,7 @@ import type { Relation } from 'typeorm';
 import {
   IssueStatus,
   TimelineAction,
+  WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
 import { BaseCoreEntity } from '../../../core/database/base.entity.js';
 import { User } from '../../auth/entities/user.entity.js';
@@ -43,6 +44,12 @@ export class ProgressUpdate extends BaseCoreEntity {
 
   @Column({ type: 'enum', enum: IssueStatus, nullable: true })
   toStatus: IssueStatus | null;
+
+  @Column({ type: 'enum', enum: WorkflowStage, nullable: true })
+  previousStage: WorkflowStage | null;
+
+  @Column({ type: 'enum', enum: WorkflowStage, nullable: true })
+  newStage: WorkflowStage | null;
 
   @Column({ type: 'text' })
   content: string;
