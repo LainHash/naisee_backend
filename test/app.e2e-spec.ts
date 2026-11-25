@@ -195,6 +195,47 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
       .expect(400);
   });
 
+  it('enforces STAFF RBAC and DTO validation on /staff/issues endpoints', async () => {
+    await request(app.getHttpServer()).get('/api/v1/staff/issues').expect(401);
+
+    const citizenToken = await jwtService.signAsync({
+      sub: 1,
+      publicId: 'uuid-citizen',
+      role: RoleName.CITIZEN,
+      fullName: 'Cô/Chú Minh',
+      phone: '0901000001',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/issues')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+
+    const staffToken = await jwtService.signAsync({
+      sub: 2,
+      publicId: 'uuid-staff',
+      role: RoleName.STAFF,
+      fullName: 'Chị Lan',
+      phone: '0901000002',
+      ward: 'Phường Trấn Biên',
+      departmentId: 1,
+    });
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/issues/HT-2026-001/reject')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ rejectionReason: '' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/staff/issues/HT-2026-001/merge')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ sourceIssuePublicIds: [] })
+      .expect(400);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
@@ -209,6 +250,11 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.paths?.['/api/v1/issues']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}/me-too']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/triage']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/reject']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/assign']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/merge']).toBeDefined();
   });
 
   afterEach(async () => {

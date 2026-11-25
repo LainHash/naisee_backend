@@ -116,3 +116,13 @@ export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   timeline: IssueTimelineItemDto[];
   feedbackSummary: FeedbackSummaryDto;
 }
+
+export class StaffIssueItemDto extends PublicIssueSummaryDto {
+  intakeNote: string | null;
+  rejectionReason: string | null;
+  priorityReason: string | null;
+}
+
+export class StaffIssueDetailDto extends PublicIssueDetailDto {
+  priorityReason: string | null;
+}
