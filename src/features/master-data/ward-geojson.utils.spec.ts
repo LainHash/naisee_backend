@@ -149,7 +149,7 @@ describe('ward-geojson.utils', () => {
 
     const longKhanh = wards.find((w) => w.code === 'DN-LONG-KHANH');
     expect(
-      isPointInPolygonGeometry(10.935, 107.238, longKhanh!.boundaryGeoJson!),
+      isPointInPolygonGeometry(10.925, 107.248, longKhanh!.boundaryGeoJson!),
     ).toBe(true);
   });
 });
