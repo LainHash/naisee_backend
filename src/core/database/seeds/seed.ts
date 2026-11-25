@@ -3,7 +3,6 @@ import {
   FeedbackReviewStatus,
   IssueStatus,
   MediaStage,
-  Priority,
   ReportType,
   RoleName,
   TimelineAction,
@@ -22,10 +21,12 @@ import { IssueCategory } from '../../../features/master-data/entities/issue-cate
 import { Ward } from '../../../features/master-data/entities/ward.entity.js';
 import { IssueMedia } from '../../../features/media/entities/issue-media.entity.js';
 import { Verification } from '../../../features/verifications/entities/verification.entity.js';
+import { loadSeedWorkbook } from './seed-excel.helper.js';
 import { upsertWardsAndBackfill } from './ward-seed.helper.js';
 
 export interface SeedResult {
   skipped: boolean;
+  sourceFile?: string;
   wards: number;
   roles: number;
   departments: number;
@@ -36,474 +37,28 @@ export interface SeedResult {
   resolvedIssues: number;
 }
 
-interface IssueSeedSpec {
-  code: string;
-  categoryCode: 'ROAD_SURFACE' | 'WASTE' | 'STREET_LIGHT' | 'FLOODING';
-  title: string;
-  description: string;
-  addressText: string;
-  ward?: string;
-  lat: number;
-  lng: number;
-  status: IssueStatus;
-  priority: Priority;
-  reportCount: number;
-  resolvedDaysAgo?: number;
-  resolutionDurationDays?: number;
-  overdue?: boolean;
-}
-
 const DEMO_ANCHOR_DATE = new Date('2026-11-24T12:00:00.000Z');
-
-const SEED_BEFORE_MEDIA_POOL: Record<IssueSeedSpec['categoryCode'], string[]> = {
-  ROAD_SURFACE: [
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617669/naisee/before/seed-road_surface-pothole.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617673/naisee/before/seed-road_surface-cracks.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617674/naisee/before/seed-road_surface-sidewalk.jpg',
-  ],
-  WASTE: [
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617670/naisee/before/seed-waste-bin.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617670/naisee/before/seed-waste-roadside.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617674/naisee/before/seed-waste-alley.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617675/naisee/before/seed-waste-bags.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617676/naisee/before/seed-waste-overflow.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617677/naisee/before/seed-waste-dump.jpg',
-  ],
-  FLOODING: [
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617671/naisee/before/seed-flooding-main.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617677/naisee/before/seed-flooding-drain.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617678/naisee/before/seed-flooding-street.jpg',
-  ],
-  STREET_LIGHT: [
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617679/naisee/before/seed-street_light-dark.jpg',
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617679/naisee/before/seed-street_light-pole.jpg',
-  ],
-};
-
-const SEED_AFTER_MEDIA_BY_CATEGORY: Record<IssueSeedSpec['categoryCode'], string> = {
-  ROAD_SURFACE:
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617680/naisee/after/seed-road_surface-after.jpg',
-  WASTE:
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617681/naisee/after/seed-waste-after.jpg',
-  FLOODING:
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617682/naisee/after/seed-flooding-after.jpg',
-  STREET_LIGHT:
-    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617682/naisee/after/seed-street_light-after.jpg',
-};
-
-const SEED_VERIFY_MEDIA_URL =
-  'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617684/naisee/verification/seed-road_surface-verify.jpg';
 
 function daysBefore(base: Date, days: number): Date {
   return new Date(base.getTime() - days * 24 * 60 * 60 * 1000);
 }
 
-function buildIssueSpecs(): IssueSeedSpec[] {
-  const specs: IssueSeedSpec[] = [
-    // HT-2026-001: Hồ sơ demo xuyên suốt (8 reports, ROAD_SURFACE, IN_PROGRESS)
-    {
-      code: 'HT-2026-001',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Ổ gà gây mất an toàn giao thông',
-      description:
-        'Mặt đường bị bong tróc, xuất hiện ổ gà sâu khoảng 15cm trước khu vực ngã ba gần trường học, dễ gây té ngã cho xe máy vào ban đêm.',
-      addressText: 'Đường Cách Mạng Tháng 8, gần số 124, Phường Trấn Biên',
-      lat: 10.9499,
-      lng: 106.8129,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.HIGH,
-      reportCount: 8,
-    },
-    // 2 hồ sơ ROAD_SURFACE đã xử lý (1 report mỗi hồ sơ -> tổng ROAD_SURFACE = 10 reports)
-    {
-      code: 'HT-2026-002',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Nắp hố ga bị sụt lún mặt đường',
-      description: 'Nắp hố ga lệch cao hơn mặt đường gây xóc mạnh.',
-      addressText: 'Đường Nguyễn Ái Quốc, đoạn gần chợ Biên Hòa',
-      lat: 10.9463,
-      lng: 106.8155,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-      resolvedDaysAgo: 2,
-      resolutionDurationDays: 3.1,
-    },
-    {
-      code: 'HT-2026-003',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Vỉa hè lát gạch bị bong bật',
-      description: 'Gạch lát vỉa hè vỡ nhiều viên gây vấp ngã cho người đi bộ.',
-      addressText: 'Đường 30 Tháng 4, khu phố 2, Phường Trấn Biên',
-      lat: 10.9466,
-      lng: 106.8183,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.MEDIUM,
-      reportCount: 1,
-      resolvedDaysAgo: 4,
-      resolutionDurationDays: 3.4,
-    },
-  ];
-
-  let nextIdx = 4;
-  const makeCode = () => `HT-2026-${String(nextIdx++).padStart(3, '0')}`;
-
-  // WASTE: 21 reports = 16 RESOLVED (1 report each) + 2 PENDING_REVIEW (1 each) + 1 VERIFYING (2 reports) + 1 IN_PROGRESS overdue (1)
-  for (let i = 1; i <= 16; i++) {
-    specs.push({
-      code: makeCode(),
-      categoryCode: 'WASTE',
-      title: `Điểm tập kết rác tự phát #${i}`,
-      description: 'Rác thải sinh hoạt tồn đọng chưa được thu gom đúng giờ.',
-      addressText: `Hẻm ${10 + i} đường Hà Huy Giáp, Phường Trấn Biên`,
-      lat: +(10.9472 + ((i - 1) % 4) * 0.0017).toFixed(6),
-      lng: +(106.8182 + Math.floor((i - 1) / 4) * 0.0024).toFixed(6),
-      status: IssueStatus.RESOLVED,
-      priority: i % 4 === 0 ? Priority.HIGH : Priority.MEDIUM,
-      reportCount: 1,
-      resolvedDaysAgo: (i % 7) + 1,
-      resolutionDurationDays: i % 2 === 0 ? 3.2 : 3.0,
-    });
-  }
-  for (let i = 1; i <= 2; i++) {
-    specs.push({
-      code: makeCode(),
-      categoryCode: 'WASTE',
-      title: `Rác cồng kềnh lấn chiếm lòng đường #${i}`,
-      description: 'Vật liệu bỏ đi chất đống ngay góc cua khu dân cư.',
-      addressText: `Đường Phan Chu Trinh số ${45 + i * 10}, Phường Trấn Biên`,
-      lat: i === 1 ? 10.9488 : 10.9502,
-      lng: i === 1 ? 106.8156 : 106.8172,
-      status: IssueStatus.PENDING_REVIEW,
-      priority: Priority.MEDIUM,
-      reportCount: 1,
-    });
-  }
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'WASTE',
-    title: 'Bãi rác tự phát ven kênh thoát nước',
-    description: 'Mùi hôi nồng nặc, cần thanh niên tình nguyện kiểm chứng vị trí.',
-    addressText: 'Bờ kè khu phố 3, Phường Trấn Biên',
-    lat: 10.9482,
-    lng: 106.811,
-    status: IssueStatus.VERIFYING,
-    priority: Priority.HIGH,
-    reportCount: 2,
-  });
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'WASTE',
-    title: 'Thùng rác công cộng hư hỏng tràn rác',
-    description: 'Thùng rác bị vỡ đáy gây rò rỉ nước thải ra vỉa hè.',
-    addressText: 'Công viên ven sông, Phường Trấn Biên',
-    lat: 10.9469,
-    lng: 106.8119,
-    status: IssueStatus.IN_PROGRESS,
-    priority: Priority.MEDIUM,
-    reportCount: 1,
-    overdue: true,
-  });
-
-  // STREET_LIGHT: 18 reports = 15 RESOLVED (1 each) + 1 RECEIVED (1) + 1 VERIFYING (1) + 1 IN_PROGRESS overdue (1)
-  for (let i = 1; i <= 15; i++) {
-    specs.push({
-      code: makeCode(),
-      categoryCode: 'STREET_LIGHT',
-      title: `Đèn đường tắt không sáng #${i}`,
-      description: 'Bóng đèn cao áp nhấp nháy hoặc tắt hoàn toàn sau 18h.',
-      addressText: `Trụ đèn số ${20 + i} đường Hưng Đạo Vương, Phường Trấn Biên`,
-      lat: +(10.9492 + ((i - 1) % 5) * 0.0014).toFixed(6),
-      lng: +(106.8165 + Math.floor((i - 1) / 5) * 0.0038).toFixed(6),
-      status: IssueStatus.RESOLVED,
-      priority: i % 3 === 0 ? Priority.HIGH : Priority.MEDIUM,
-      reportCount: 1,
-      resolvedDaysAgo: (i % 6) + 1,
-      resolutionDurationDays: i % 2 === 0 ? 3.5 : 3.0,
-    });
-  }
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'STREET_LIGHT',
-    title: 'Cụm đèn ngã tư mất điện toàn bộ',
-    description: 'Cả đoạn 150m tối om, tiềm ẩn nguy cơ tai nạn buổi tối.',
-    addressText: 'Ngã tư Vườn Mít, Phường Trấn Biên',
-    lat: 10.952,
-    lng: 106.8295,
-    status: IssueStatus.RECEIVED,
-    priority: Priority.HIGH,
-    reportCount: 1,
-  });
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'STREET_LIGHT',
-    title: 'Trụ đèn nghiêng và hở nắp tủ điện',
-    description: 'Cần xác minh mức độ nguy hiểm điện giật gần khu dân cư.',
-    addressText: 'Đường Võ Thị Sáu đoạn khu phố 4, Phường Trấn Biên',
-    lat: 10.9483,
-    lng: 106.8356,
-    status: IssueStatus.VERIFYING,
-    priority: Priority.CRITICAL,
-    reportCount: 1,
-  });
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'STREET_LIGHT',
-    title: 'Đèn hẻm bị che khuất bởi tán cây và đứt dây',
-    description: 'Đèn không sáng nhiều ngày qua.',
-    addressText: 'Hẻm 82 khu phố 1, Phường Trấn Biên',
-    lat: 10.9532,
-    lng: 106.8142,
-    status: IssueStatus.IN_PROGRESS,
-    priority: Priority.MEDIUM,
-    reportCount: 1,
-    overdue: true,
-  });
-
-  // FLOODING: 15 reports = 14 RESOLVED (1 each) + 1 PENDING_REVIEW (1)
-  for (let i = 1; i <= 14; i++) {
-    specs.push({
-      code: makeCode(),
-      categoryCode: 'FLOODING',
-      title: `Điểm ngập cục bộ sau mưa lớn #${i}`,
-      description: 'Miệng cống bị rác lá cây che lấp gây thoát nước chậm.',
-      addressText: `Đoạn số ${30 + i * 3} đường Phạm Văn Thuận, Phường Trấn Biên`,
-      lat: +(10.949 + ((i - 1) % 4) * 0.0022).toFixed(6),
-      lng: +(106.8305 + Math.floor((i - 1) / 4) * 0.0046).toFixed(6),
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-      resolvedDaysAgo: (i % 5) + 1,
-      resolutionDurationDays: i % 2 === 0 ? 3.3 : 3.1,
-    });
-  }
-  specs.push({
-    code: makeCode(),
-    categoryCode: 'FLOODING',
-    title: 'Nước đọng sâu trước cổng trường tiểu học',
-    description: 'Ngập khoảng 25cm sau cơn mưa chiều, gây khó khăn đưa đón học sinh.',
-    addressText: 'Cổng trường Tiểu học khu phố 2, Phường Trấn Biên',
-    lat: 10.9478,
-    lng: 106.8202,
-    status: IssueStatus.PENDING_REVIEW,
-    priority: Priority.HIGH,
-    reportCount: 1,
-  });
-
-  // Multi-ward Dong Nai distribution across 14 additional wards
-  const multiWardSpecs: Array<{
-    ward: string;
-    categoryCode: IssueSeedSpec['categoryCode'];
-    title: string;
-    description: string;
-    addressText: string;
-    lat: number;
-    lng: number;
-    status: IssueStatus;
-    priority: Priority;
-    reportCount: number;
-    resolvedDaysAgo?: number;
-  }> = [
-    {
-      ward: 'Phường Biên Hòa',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Mặt đường Nguyễn Ái Quốc đoạn Hóa An xuống cấp',
-      description: 'Xuất hiện nhiều ổ gà lớn sau mùa mưa gây ùn tắc giờ cao điểm.',
-      addressText: 'Đường Nguyễn Ái Quốc, khu vực Hóa An, Phường Biên Hòa',
-      lat: 10.9415,
-      lng: 106.8035,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.HIGH,
-      reportCount: 3,
-    },
-    {
-      ward: 'Phường Tam Hiệp',
-      categoryCode: 'FLOODING',
-      title: 'Ngập cục bộ ngã tư đường Đồng Khởi – Phạm Văn Thuận',
-      description: 'Nước thoát chậm sau mưa lớn gây ngập nửa bánh xe.',
-      addressText: 'Ngã tư Đồng Khởi – Phạm Văn Thuận, Phường Tam Hiệp',
-      lat: 10.9522,
-      lng: 106.8676,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 2,
-      resolvedDaysAgo: 2,
-    },
-    {
-      ward: 'Phường Long Bình',
-      categoryCode: 'WASTE',
-      title: 'Điểm tập kết rác tự phát gần khu công nghiệp',
-      description: 'Rác sinh hoạt và bao bì tồn đọng ven lề đường.',
-      addressText: 'Đường Bùi Văn Hòa, Phường Long Bình',
-      lat: 10.9325,
-      lng: 106.9015,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.MEDIUM,
-      reportCount: 2,
-    },
-    {
-      ward: 'Phường Trảng Dài',
-      categoryCode: 'STREET_LIGHT',
-      title: 'Tuyến đèn chiếu sáng đường Nguyễn Khuyến mất điện',
-      description: 'Khoảng 8 trụ đèn liên tiếp không sáng từ 18h30.',
-      addressText: 'Đường Nguyễn Khuyến, Phường Trảng Dài',
-      lat: 11.0059,
-      lng: 106.8858,
-      status: IssueStatus.VERIFYING,
-      priority: Priority.HIGH,
-      reportCount: 1,
-    },
-    {
-      ward: 'Phường Hố Nai',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Nắp cống gãy chắn ngang lề đường Quốc lộ 1A',
-      description: 'Cần thay mới nắp bê tông bảo đảm an toàn cho xe máy.',
-      addressText: 'Quốc lộ 1A đoạn Tân Hòa, Phường Hố Nai',
-      lat: 10.985,
-      lng: 106.926,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-      resolvedDaysAgo: 3,
-    },
-    {
-      ward: 'Phường Long Hưng',
-      categoryCode: 'FLOODING',
-      title: 'Triều cường kết hợp mưa gây ngập tuyến nhánh Long Bình Tân',
-      description: 'Nước tràn mặt đường khoảng 20cm vào buổi chiều.',
-      addressText: 'Ngã ba Long Bình Tân, Phường Long Hưng',
-      lat: 10.8859,
-      lng: 106.8637,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.HIGH,
-      reportCount: 2,
-    },
-    {
-      ward: 'Phường Tân Triều',
-      categoryCode: 'STREET_LIGHT',
-      title: 'Đèn đường khu vực bến đò Tân Triều chập chờn',
-      description: 'Đèn nhấp nháy liên tục gây khó quan sát ban đêm.',
-      addressText: 'Đường Hương lộ 9, Phường Tân Triều',
-      lat: 10.9951,
-      lng: 106.8116,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.MEDIUM,
-      reportCount: 1,
-      resolvedDaysAgo: 4,
-    },
-    {
-      ward: 'Phường Phước Tân',
-      categoryCode: 'WASTE',
-      title: 'Rác thải công nghiệp nhẹ đổ trộm ven đường tránh',
-      description: 'Cần thu gom và cắm biển cảnh báo khu vực.',
-      addressText: 'Đường Võ Nguyên Giáp, Phường Phước Tân',
-      lat: 10.909,
-      lng: 106.9392,
-      status: IssueStatus.PENDING_REVIEW,
-      priority: Priority.MEDIUM,
-      reportCount: 1,
-    },
-    {
-      ward: 'Phường Tam Phước',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Lún mặt đường trước cổng khu dân cư Tam Phước',
-      description: 'Xe tải trọng lớn làm lún vệt bánh xe dài 10m.',
-      addressText: 'Quốc lộ 51, Phường Tam Phước',
-      lat: 10.8426,
-      lng: 106.929,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.MEDIUM,
-      reportCount: 1,
-      resolvedDaysAgo: 5,
-    },
-    {
-      ward: 'Phường Long Khánh',
-      categoryCode: 'STREET_LIGHT',
-      title: 'Cụm đèn quảng trường công viên Long Khánh tắt bóng',
-      description: 'Hai trụ đèn chính bị hỏng bộ nguồn.',
-      addressText: 'Đường Hùng Vương, Phường Long Khánh',
-      lat: 10.9214,
-      lng: 107.2861,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.MEDIUM,
-      reportCount: 2,
-    },
-    {
-      ward: 'Phường Bảo Vinh',
-      categoryCode: 'FLOODING',
-      title: 'Rãnh thoát nước bị đất đá bồi lấp sau mưa',
-      description: 'Cần nạo vét trước đợt mưa cuối tuần.',
-      addressText: 'Đường Lê A, Phường Bảo Vinh',
-      lat: 10.9643,
-      lng: 107.2736,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-      resolvedDaysAgo: 1,
-    },
-    {
-      ward: 'Phường Chơn Thành',
-      categoryCode: 'ROAD_SURFACE',
-      title: 'Ổ gà tại vòng xoay trung tâm Chơn Thành',
-      description: 'Mặt nhựa bong tróc cạnh vạch kẻ đường.',
-      addressText: 'Quốc lộ 13, Phường Chơn Thành',
-      lat: 11.4098,
-      lng: 106.6365,
-      status: IssueStatus.RESOLVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-      resolvedDaysAgo: 3,
-    },
-    {
-      ward: 'Phường Đồng Xoài',
-      categoryCode: 'WASTE',
-      title: 'Thùng rác công cộng khu vực chợ Đồng Xoài quá tải',
-      description: 'Cần tăng tần suất thu gom vào cuối ngày.',
-      addressText: 'Đường Phú Riềng Đỏ, Phường Đồng Xoài',
-      lat: 11.5269,
-      lng: 106.788,
-      status: IssueStatus.IN_PROGRESS,
-      priority: Priority.MEDIUM,
-      reportCount: 3,
-    },
-    {
-      ward: 'Phường Phước Long',
-      categoryCode: 'STREET_LIGHT',
-      title: 'Đèn chiếu sáng tuyến dốc khu vực trung tâm Phước Long hỏng',
-      description: 'Đoạn đường dốc thiếu ánh sáng vào buổi tối.',
-      addressText: 'Đường ĐT 741, Phường Phước Long',
-      lat: 11.7635,
-      lng: 107.0349,
-      status: IssueStatus.RECEIVED,
-      priority: Priority.HIGH,
-      reportCount: 1,
-    },
-  ];
-
-  for (const item of multiWardSpecs) {
-    specs.push({
-      code: makeCode(),
-      ...item,
-      resolutionDurationDays: item.status === IssueStatus.RESOLVED ? 2.8 : undefined,
-    });
-  }
-
-  return specs;
-}
-
 /**
- * Seeds baseline roles, departments, categories, demo accounts, and 64 demo reports.
+ * Seeds baseline roles, departments, categories, demo accounts, and issues
+ * from `data/naisee-seed-data.xlsx`.
  * Idempotent by default; pass reset=true to truncate and re-seed cleanly.
  */
 export async function runSeed(
   dataSource: DataSource,
-  options: { reset?: boolean } = {},
+  options: { reset?: boolean; filePath?: string } = {},
 ): Promise<SeedResult> {
   if (options.reset) {
     await dataSource.query(
       'TRUNCATE TABLE feedbacks, verifications, issue_media, progress_updates, reports, issues, issue_categories, users, departments, roles, wards RESTART IDENTITY CASCADE',
     );
   }
+
+  const workbookData = await loadSeedWorkbook(options.filePath);
 
   return dataSource.transaction(async (manager) => {
     const wardRepo = manager.getRepository(Ward);
@@ -527,12 +82,14 @@ export async function runSeed(
       (w) => w.name.trim().toLowerCase() === 'phường trấn biên',
     );
 
+    const firstIssueCode = workbookData.issues[0]?.code ?? 'HT-2026-001';
     const existingDemoIssue = await issueRepo.findOne({
-      where: { code: 'HT-2026-001' },
+      where: { code: firstIssueCode },
     });
     if (existingDemoIssue && !options.reset) {
       return {
         skipped: true,
+        sourceFile: workbookData.filePath,
         wards: await wardRepo.count(),
         roles: await roleRepo.count(),
         departments: await deptRepo.count(),
@@ -546,173 +103,128 @@ export async function runSeed(
       };
     }
 
-    // 1. Roles
-    const roles = await roleRepo.save([
-      roleRepo.create({
-        name: RoleName.CITIZEN,
-        description: 'Người dân địa phương gửi và theo dõi phản ánh',
-      }),
-      roleRepo.create({
-        name: RoleName.STAFF,
-        description: 'Cán bộ tiếp nhận & điều phối UBND Phường Trấn Biên',
-      }),
-      roleRepo.create({
-        name: RoleName.VOLUNTEER,
-        description: 'Thanh niên tình nguyện hỗ trợ xác minh tại chỗ',
-      }),
-      roleRepo.create({
-        name: RoleName.ADMIN,
-        description: 'Quản trị hệ thống và danh mục nền',
-      }),
-    ]);
+    // 1. Roles (from Excel sheet `roles`)
+    const roles = await roleRepo.save(
+      workbookData.roles.map((r) =>
+        roleRepo.create({
+          name: r.name,
+          description: r.description,
+        }),
+      ),
+    );
     const roleMap = new Map(roles.map((r) => [r.name, r]));
 
-    // 2. Departments
-    const departments = await deptRepo.save([
-      deptRepo.create({
-        code: 'ROAD_MAINTENANCE',
-        name: 'Đội duy tu đường bộ',
-        contactPhone: '02513800101',
-        description: 'Xử lý ổ gà, sụt lún mặt đường, vỉa hè và nắp hố ga',
-      }),
-      deptRepo.create({
-        code: 'LIGHTING',
-        name: 'Đội chiếu sáng đô thị',
-        contactPhone: '02513800102',
-        description: 'Bảo trì hệ thống đèn đường, trụ đèn và tủ điện công cộng',
-      }),
-      deptRepo.create({
-        code: 'ENVIRONMENT',
-        name: 'Tổ môi trường đô thị',
-        contactPhone: '02513800103',
-        description: 'Thu gom rác thải tự phát, vệ sinh công viên và lòng đường',
-      }),
-      deptRepo.create({
-        code: 'DRAINAGE',
-        name: 'Đội thoát nước',
-        contactPhone: '02513800104',
-        description: 'Khơi thông cống rãnh, xử lý các điểm ngập úng cục bộ',
-      }),
-    ]);
+    // 2. Departments (from Excel sheet `departments`)
+    const departments = await deptRepo.save(
+      workbookData.departments.map((d) =>
+        deptRepo.create({
+          code: d.code,
+          name: d.name,
+          contactPhone: d.contactPhone,
+          description: d.description,
+        }),
+      ),
+    );
     const deptMap = new Map(departments.map((d) => [d.code, d]));
 
-    // 3. Issue Categories
-    const categories = await catRepo.save([
-      catRepo.create({
-        code: 'ROAD_SURFACE',
-        name: 'Mặt đường / Ổ gà',
-        defaultDepartmentId: deptMap.get('ROAD_MAINTENANCE')!.id,
-        defaultPriority: Priority.HIGH,
-        slaHours: 72,
-        icon: 'construction',
+    // 3. Issue Categories (from Excel sheet `categories`)
+    const categories = await catRepo.save(
+      workbookData.categories.map((c) => {
+        const dept = deptMap.get(c.defaultDepartmentCode);
+        if (!dept) {
+          throw new Error(
+            `Category ${c.code} tham chiếu phòng ban không tồn tại: ${c.defaultDepartmentCode}`,
+          );
+        }
+        return catRepo.create({
+          code: c.code,
+          name: c.name,
+          defaultDepartmentId: dept.id,
+          defaultPriority: c.defaultPriority,
+          slaHours: c.slaHours,
+          icon: c.icon,
+        });
       }),
-      catRepo.create({
-        code: 'STREET_LIGHT',
-        name: 'Đèn đường',
-        defaultDepartmentId: deptMap.get('LIGHTING')!.id,
-        defaultPriority: Priority.MEDIUM,
-        slaHours: 24,
-        icon: 'lightbulb',
-      }),
-      catRepo.create({
-        code: 'WASTE',
-        name: 'Rác thải',
-        defaultDepartmentId: deptMap.get('ENVIRONMENT')!.id,
-        defaultPriority: Priority.MEDIUM,
-        slaHours: 48,
-        icon: 'trash-2',
-      }),
-      catRepo.create({
-        code: 'FLOODING',
-        name: 'Ngập nước',
-        defaultDepartmentId: deptMap.get('DRAINAGE')!.id,
-        defaultPriority: Priority.HIGH,
-        slaHours: 12,
-        icon: 'waves',
-      }),
-      catRepo.create({
-        code: 'OTHER',
-        name: 'Vấn đề khác',
-        defaultDepartmentId: deptMap.get('ROAD_MAINTENANCE')!.id,
-        defaultPriority: Priority.LOW,
-        slaHours: 72,
-        icon: 'alert-circle',
-      }),
-    ]);
+    );
     const catMap = new Map(categories.map((c) => [c.code, c]));
 
-    // 4. Demo Users (3 vai trò chính + 2 tài khoản người dân phụ cho ME_TOO)
-    const citizenRole = roleMap.get(RoleName.CITIZEN)!;
-    const staffRole = roleMap.get(RoleName.STAFF)!;
-    const volunteerRole = roleMap.get(RoleName.VOLUNTEER)!;
-    const adminRole = roleMap.get(RoleName.ADMIN)!;
+    // 4. Demo Users (from Excel sheet `users`)
+    const users = await userRepo.save(
+      workbookData.users.map((u) => {
+        const role = roleMap.get(u.roleName);
+        if (!role) {
+          throw new Error(
+            `User ${u.phone} tham chiếu vai trò không tồn tại: ${u.roleName}`,
+          );
+        }
+        const departmentId = u.departmentCode
+          ? (deptMap.get(u.departmentCode)?.id ?? null)
+          : null;
+        const wardId =
+          wardIdByName.get(u.ward.trim().toLowerCase()) ??
+          tranBienWard?.id ??
+          null;
+        return userRepo.create({
+          roleId: role.id,
+          departmentId,
+          fullName: u.fullName,
+          phone: u.phone,
+          ward: u.ward,
+          wardId,
+          largeTextMode: u.largeTextMode,
+        });
+      }),
+    );
 
-    const users = await userRepo.save([
-      userRepo.create({
-        roleId: citizenRole.id,
-        fullName: 'Cô/Chú Minh',
-        phone: '0901000001',
-        ward: 'Phường Trấn Biên',
-        wardId: tranBienWard?.id ?? null,
-        largeTextMode: false,
-      }),
-      userRepo.create({
-        roleId: staffRole.id,
-        departmentId: deptMap.get('ROAD_MAINTENANCE')!.id,
-        fullName: 'Chị Lan – Cán bộ UBND Đồng Nai',
-        phone: '0901000002',
-        ward: 'Phường Trấn Biên',
-        wardId: tranBienWard?.id ?? null,
-      }),
-      userRepo.create({
-        roleId: volunteerRole.id,
-        fullName: 'Bạn Hùng – Đoàn viên thanh niên',
-        phone: '0901000003',
-        ward: 'Phường Trấn Biên',
-        wardId: tranBienWard?.id ?? null,
-      }),
-      userRepo.create({
-        roleId: citizenRole.id,
-        fullName: 'Anh Tuấn – Cư dân Biên Hòa',
-        phone: '0901000004',
-        ward: 'Phường Biên Hòa',
-        wardId: wardIdByName.get('phường biên hòa') ?? null,
-      }),
-      userRepo.create({
-        roleId: citizenRole.id,
-        fullName: 'Chị Hoa – Cư dân Long Khánh',
-        phone: '0901000005',
-        ward: 'Phường Long Khánh',
-        wardId: wardIdByName.get('phường long khánh') ?? null,
-      }),
-      userRepo.create({
-        roleId: adminRole.id,
-        fullName: 'Quản trị viên Cổng Tỉnh Đồng Nai',
-        phone: '0901000099',
-        ward: 'Phường Trấn Biên',
-        wardId: tranBienWard?.id ?? null,
-      }),
-    ]);
+    const citizenUsers = users.filter(
+      (u) => u.roleId === roleMap.get(RoleName.CITIZEN)?.id,
+    );
+    const demoCitizen = citizenUsers[0] ?? users[0];
+    const demoStaff =
+      users.find((u) => u.roleId === roleMap.get(RoleName.STAFF)?.id) ??
+      users[1] ??
+      users[0];
+    const demoVolunteer =
+      users.find((u) => u.roleId === roleMap.get(RoleName.VOLUNTEER)?.id) ??
+      users[2] ??
+      users[0];
+    const citizenPool = citizenUsers.length > 0 ? citizenUsers : [demoCitizen];
 
-    const demoCitizen = users[0];
-    const demoStaff = users[1];
-    const demoVolunteer = users[2];
-    const citizenPool = [users[0], users[3], users[4]];
+    // Index fallback media presets from Excel sheet `media_presets`
+    const beforePoolByCat = new Map<string, string[]>();
+    const afterByCat = new Map<string, string>();
+    let verifyMediaUrl = '';
+    for (const preset of workbookData.mediaPresets) {
+      if (preset.stage === MediaStage.BEFORE) {
+        const list = beforePoolByCat.get(preset.categoryCode) ?? [];
+        list.push(preset.url);
+        beforePoolByCat.set(preset.categoryCode, list);
+      } else if (preset.stage === MediaStage.AFTER) {
+        afterByCat.set(preset.categoryCode, preset.url);
+      } else if (preset.stage === MediaStage.VERIFICATION) {
+        verifyMediaUrl = preset.url;
+      }
+    }
 
-    // 5. Issues, Reports, Media, ProgressUpdates, Verifications, Feedback
-    const specs = buildIssueSpecs();
+    // 5. Issues, Reports, Media, ProgressUpdates, Verifications, Feedback (from Excel sheet `issues`)
+    const specs = workbookData.issues;
     let totalReports = 0;
     let resolvedIssues = 0;
 
     for (let idx = 0; idx < specs.length; idx++) {
       const spec = specs[idx];
-      const category = catMap.get(spec.categoryCode)!;
+      const category = catMap.get(spec.categoryCode);
+      if (!category) {
+        throw new Error(
+          `Issue ${spec.code} tham chiếu categoryCode không tồn tại: ${spec.categoryCode}`,
+        );
+      }
       const defaultDept = departments.find(
         (d) => d.id === category.defaultDepartmentId,
       )!;
       const reporter =
         spec.code === 'HT-2026-001'
-          ? users[3]
+          ? (citizenPool[1] ?? demoCitizen)
           : citizenPool[idx % citizenPool.length];
 
       let createdAt = daysBefore(DEMO_ANCHOR_DATE, 2);
@@ -745,9 +257,13 @@ export async function runSeed(
           : new Date(DEMO_ANCHOR_DATE.getTime() + 2 * 24 * 60 * 60 * 1000);
       }
 
-      const beforePool = SEED_BEFORE_MEDIA_POOL[spec.categoryCode];
-      const beforeImageUrl = beforePool[idx % beforePool.length];
-      const afterImageUrl = SEED_AFTER_MEDIA_BY_CATEGORY[spec.categoryCode];
+      const categoryBeforePool = beforePoolByCat.get(spec.categoryCode) ?? [];
+      const beforeImageUrl =
+        spec.beforeImageUrl ||
+        categoryBeforePool[idx % Math.max(categoryBeforePool.length, 1)] ||
+        '';
+      const afterImageUrl =
+        spec.afterImageUrl || afterByCat.get(spec.categoryCode) || '';
       const resolutionNote =
         spec.status === IssueStatus.RESOLVED
           ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
@@ -770,11 +286,11 @@ export async function runSeed(
         spec.status === IssueStatus.IN_PROGRESS ||
         spec.status === IssueStatus.RESOLVED;
 
-          const targetWardName = spec.ward ?? 'Phường Trấn Biên';
-          const targetWardId =
-            wardIdByName.get(targetWardName.trim().toLowerCase()) ??
-            tranBienWard?.id ??
-            null;
+      const targetWardName = spec.ward || 'Phường Trấn Biên';
+      const targetWardId =
+        wardIdByName.get(targetWardName.trim().toLowerCase()) ??
+        tranBienWard?.id ??
+        null;
 
       const issue = await issueRepo.save(
         issueRepo.create({
@@ -831,16 +347,18 @@ export async function runSeed(
       );
       totalReports++;
 
-      await mediaRepo.save(
-        mediaRepo.create({
-          issueId: issue.id,
-          reportId: initialReport.id,
-          uploadedById: reporter.id,
-          stage: MediaStage.BEFORE,
-          url: beforeImageUrl,
-          caption: `Ảnh hiện trường ban đầu (${spec.code})`,
-        }),
-      );
+      if (beforeImageUrl) {
+        await mediaRepo.save(
+          mediaRepo.create({
+            issueId: issue.id,
+            reportId: initialReport.id,
+            uploadedById: reporter.id,
+            stage: MediaStage.BEFORE,
+            url: beforeImageUrl,
+            caption: `Ảnh hiện trường ban đầu (${spec.code})`,
+          }),
+        );
+      }
 
       await progressRepo.save(
         progressRepo.create({
@@ -858,7 +376,8 @@ export async function runSeed(
       for (let r = 1; r < spec.reportCount; r++) {
         const meTooUser =
           spec.code === 'HT-2026-001'
-            ? (r % 2 === 1 ? users[4] : users[3])
+            ? (citizenPool[(r % 2 === 1 ? 2 : 1) % citizenPool.length] ??
+              demoCitizen)
             : citizenPool[(idx + r) % citizenPool.length];
         await reportRepo.save(
           reportRepo.create({
@@ -893,42 +412,13 @@ export async function runSeed(
             issueId: issue.id,
             actorId: demoStaff.id,
             actionType: TimelineAction.ASSIGNED,
-            fromStatus: IssueStatus.PENDING_REVIEW,
+            fromStatus: IssueStatus.RECEIVED,
             toStatus: IssueStatus.IN_PROGRESS,
             previousStage: WorkflowStage.RECEIVED,
-            newStage:
-              spec.code === 'HT-2026-001'
-                ? WorkflowStage.WORK_ACCEPTED
-                : WorkflowStage.DEPARTMENT_ASSIGNED,
-            content: `Đã giao ${defaultDept.name} xử lý.`,
+            newStage: WorkflowStage.DEPARTMENT_ASSIGNED,
+            content: `Đã phân công ${defaultDept.name} tiếp nhận xử lý.`,
             isPublic: true,
-          }),
-        );
-      }
-
-      if (spec.status === IssueStatus.VERIFYING) {
-        await verificationRepo.save(
-          verificationRepo.create({
-            issueId: issue.id,
-            requestedById: demoStaff.id,
-            status: VerificationStatus.OPEN,
-            instruction:
-              'Nhờ thanh niên tình nguyện kiểm tra thực tế và chụp ảnh bổ sung.',
-            dueAt: new Date(DEMO_ANCHOR_DATE.getTime() + 12 * 60 * 60 * 1000),
-          }),
-        );
-
-        await progressRepo.save(
-          progressRepo.create({
-            issueId: issue.id,
-            actorId: demoStaff.id,
-            actionType: TimelineAction.VERIFICATION_REQUESTED,
-            fromStatus: IssueStatus.RECEIVED,
-            toStatus: IssueStatus.VERIFYING,
-            previousStage: WorkflowStage.RECEIVED,
-            newStage: WorkflowStage.VERIFICATION_REQUESTED,
-            content: 'Đã chuyển yêu cầu xác minh cho đội thanh niên tình nguyện.',
-            isPublic: true,
+            createdAt,
           }),
         );
       }
@@ -949,16 +439,18 @@ export async function runSeed(
           }),
         );
 
-        await mediaRepo.save(
-          mediaRepo.create({
-            issueId: issue.id,
-            progressUpdateId: resolveUpdate.id,
-            uploadedById: demoStaff.id,
-            stage: MediaStage.AFTER,
-            url: afterImageUrl,
-            caption: `Ảnh sau xử lý (${spec.code})`,
-          }),
-        );
+        if (afterImageUrl) {
+          await mediaRepo.save(
+            mediaRepo.create({
+              issueId: issue.id,
+              progressUpdateId: resolveUpdate.id,
+              uploadedById: demoStaff.id,
+              stage: MediaStage.AFTER,
+              url: afterImageUrl,
+              caption: `Ảnh sau xử lý (${spec.code})`,
+            }),
+          );
+        }
 
         if (idx % 3 === 0) {
           await feedbackRepo.save(
@@ -994,16 +486,18 @@ export async function runSeed(
           }),
         );
 
-        await mediaRepo.save(
-          mediaRepo.create({
-            issueId: issue.id,
-            verificationId: verification.id,
-            uploadedById: demoVolunteer.id,
-            stage: MediaStage.VERIFICATION,
-            url: SEED_VERIFY_MEDIA_URL,
-            caption: 'Ảnh thanh niên xác minh thực địa HT-2026-001',
-          }),
-        );
+        if (verifyMediaUrl) {
+          await mediaRepo.save(
+            mediaRepo.create({
+              issueId: issue.id,
+              verificationId: verification.id,
+              uploadedById: demoVolunteer.id,
+              stage: MediaStage.VERIFICATION,
+              url: verifyMediaUrl,
+              caption: 'Ảnh thanh niên xác minh thực địa HT-2026-001',
+            }),
+          );
+        }
       }
     }
 
@@ -1014,6 +508,7 @@ export async function runSeed(
 
     return {
       skipped: false,
+      sourceFile: workbookData.filePath,
       wards: await wardRepo.count(),
       roles: roles.length,
       departments: departments.length,
@@ -1025,4 +520,3 @@ export async function runSeed(
     };
   });
 }
-

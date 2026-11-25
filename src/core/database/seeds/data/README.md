@@ -18,3 +18,24 @@ npm run import:wards -- --file=D:\path\to\dong-nai.geojson
 
 Mặc định hệ thống kích hoạt toàn bộ đơn vị loại `WARD` (phường). Thêm cờ `--all-communes` nếu muốn kích hoạt đồng thời cả các xã (`COMMUNE`).
 
+# Dữ liệu Seed Nghiệp vụ & Phản ánh (Excel)
+
+File Excel nguồn dữ liệu seed mặc định nằm tại:
+
+`naisee_backend/src/core/database/seeds/data/naisee-seed-data.xlsx`
+
+Gồm 6 sheet: `roles`, `departments`, `categories`, `users`, `media_presets`, và `issues`.
+
+Chạy seed hoặc reset từ `naisee_backend`:
+
+```powershell
+npm run seed:reset
+```
+
+Hoặc truyền file Excel tùy chọn:
+
+```powershell
+npm run seed -- --reset --file=D:\path\to\custom-seed.xlsx
+```
+
+
