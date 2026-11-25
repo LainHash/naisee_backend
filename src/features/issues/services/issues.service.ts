@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository, SelectQueryBuilder } from 'typeorm';
+import type { EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import type { ApiResponseDto } from '../../../common/dto/api-response.dto.js';
 import {
   IssueStatus,
@@ -17,6 +17,8 @@ import {
 } from '../../../common/enums/domain.enums.js';
 import type { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface.js';
 import { IssueCategory } from '../../master-data/entities/issue-category.entity.js';
+import type { Ward } from '../../master-data/entities/ward.entity.js';
+import { WardBoundaryService } from '../../master-data/ward-boundary.service.js';
 import { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { CreateIssueDto } from '../dto/create-issue.dto.js';
 import type {
@@ -65,17 +67,29 @@ export class IssuesService {
     private readonly categoryRepo: Repository<IssueCategory>,
     private readonly geoService: IssueGeoService,
     private readonly priorityService: IssuePriorityService,
+    private readonly wardBoundaryService: WardBoundaryService,
   ) {}
 
   async findNearby(
     query: NearbyIssuesQueryDto,
   ): Promise<NearbyIssueItemDto[]> {
+    const bbox = this.geoService.calculateBoundingBox(
+      query.lat,
+      query.lng,
+      query.radiusMeters,
+    );
+
     const qb = this.issueRepo
       .createQueryBuilder('issue')
       .innerJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.assignedDepartment', 'department')
+      .leftJoinAndSelect('issue.wardUnit', 'wardUnit')
       .where('issue.isPublic = :isPublic', { isPublic: true })
-      .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
+      .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false })
+      .andWhere(
+        'issue.latitude BETWEEN :minLat AND :maxLat AND issue.longitude BETWEEN :minLng AND :maxLng',
+        bbox,
+      );
 
     if (query.forDuplicateCheck) {
       qb.andWhere('issue.status != :rejectedStatus', {
@@ -98,6 +112,7 @@ export class IssuesService {
     if (query.status) {
       qb.andWhere('issue.status = :status', { status: query.status });
     }
+    this.applyWardFilters(qb, query);
 
     const candidates = await qb.getMany();
     const now = new Date();
@@ -128,6 +143,7 @@ export class IssuesService {
       .createQueryBuilder('issue')
       .innerJoinAndSelect('issue.category', 'category')
       .leftJoinAndSelect('issue.assignedDepartment', 'department')
+      .leftJoinAndSelect('issue.wardUnit', 'wardUnit')
       .where('issue.isPublic = :isPublic', { isPublic: true })
       .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
 
@@ -158,6 +174,7 @@ export class IssuesService {
     const qb = this.issueRepo
       .createQueryBuilder('issue')
       .innerJoin('issue.category', 'category')
+      .leftJoin('issue.wardUnit', 'wardUnit')
       .select([
         'issue.publicId',
         'issue.code',
@@ -173,6 +190,7 @@ export class IssuesService {
         'issue.updatedAt',
         'category.code',
         'category.name',
+        'wardUnit.publicId',
       ])
       .where('issue.isPublic = :isPublic', { isPublic: true })
       .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
@@ -216,6 +234,7 @@ export class IssuesService {
         longitude: issue.longitude,
         addressText: issue.addressText,
         ward: issue.ward,
+        wardPublicId: issue.wardUnit?.publicId ?? null,
         reportCount: issue.reportCount,
         categoryCode: issue.category.code,
         categoryName: issue.category.name,
@@ -224,11 +243,27 @@ export class IssuesService {
     };
   }
 
+  private applyWardFilters(
+    qb: SelectQueryBuilder<Issue>,
+    query: Pick<QueryIssuesDto, 'ward' | 'wardPublicId'>,
+  ): void {
+    if (query.wardPublicId) {
+      qb.andWhere('wardUnit.publicId = :wardPublicId', {
+        wardPublicId: query.wardPublicId,
+      });
+    }
+    if (query.ward?.trim()) {
+      qb.andWhere('LOWER(issue.ward) LIKE :ward', {
+        ward: `%${query.ward.trim().toLowerCase()}%`,
+      });
+    }
+  }
+
   private applyPublicQueryFilters(
     qb: SelectQueryBuilder<Issue>,
     query: Pick<
       QueryIssuesDto,
-      'categoryPublicId' | 'categoryCode' | 'status' | 'ward' | 'search'
+      'categoryPublicId' | 'categoryCode' | 'status' | 'ward' | 'wardPublicId' | 'search'
     >,
   ): void {
     if (query.categoryPublicId) {
@@ -244,11 +279,7 @@ export class IssuesService {
     if (query.status) {
       qb.andWhere('issue.status = :status', { status: query.status });
     }
-    if (query.ward?.trim()) {
-      qb.andWhere('LOWER(issue.ward) LIKE :ward', {
-        ward: `%${query.ward.trim().toLowerCase()}%`,
-      });
-    }
+    this.applyWardFilters(qb, query);
     if (query.search?.trim()) {
       const term = `%${query.search.trim().toLowerCase()}%`;
       qb.andWhere(
@@ -271,6 +302,7 @@ export class IssuesService {
       relations: {
         category: true,
         assignedDepartment: true,
+        wardUnit: true,
         media: true,
         progressUpdates: {
           actor: {
@@ -362,6 +394,8 @@ export class IssuesService {
           )
         : null;
 
+    const resolvedWard = await this.resolveIssueWard(dto, user);
+
     const priorityEval = this.priorityService.evaluate({
       defaultPriority: category.defaultPriority,
       categoryName: category.name,
@@ -377,7 +411,7 @@ export class IssuesService {
         const txMediaRepo = manager.getRepository(IssueMedia);
         const txProgressRepo = manager.getRepository(ProgressUpdate);
 
-        const code = await this.generateNextIssueCode(txIssueRepo);
+        const code = await this.generateNextIssueCode(manager, txIssueRepo);
 
         const savedIssue = await txIssueRepo.save(
           txIssueRepo.create({
@@ -393,7 +427,8 @@ export class IssuesService {
             latitude: dto.latitude,
             longitude: dto.longitude,
             addressText: dto.addressText.trim(),
-            ward: dto.ward?.trim() || user.ward || 'Phường Trấn Biên',
+            ward: resolvedWard.name,
+            wardId: resolvedWard.id,
             thumbnailUrl: dto.imageUrls[0],
             reportCount: 1,
             createdById: user.id,
@@ -729,13 +764,82 @@ export class IssuesService {
     return category as IssueCategory;
   }
 
-  private async generateNextIssueCode(txIssueRepo: Repository<Issue>): Promise<string> {
+  private async resolveIssueWard(
+    dto: Pick<CreateIssueDto, 'latitude' | 'longitude' | 'wardPublicId' | 'ward'>,
+    user: AuthenticatedUser,
+  ): Promise<Ward> {
+    const byCoords = await this.wardBoundaryService.resolveByCoordinates(
+      dto.latitude,
+      dto.longitude,
+    );
+    if (byCoords) {
+      return byCoords;
+    }
+
+    if (dto.wardPublicId || dto.ward?.trim()) {
+      const byInput = await this.wardBoundaryService.findActiveWard({
+        wardPublicId: dto.wardPublicId,
+        wardName: dto.ward,
+      });
+      if (byInput) {
+        return byInput;
+      }
+    }
+
+    if (process.env.ALLOW_OUT_OF_AREA_DEMO === 'true') {
+      const byUser = await this.wardBoundaryService.findActiveWard({
+        wardName: user.ward,
+      });
+      if (byUser) {
+        return byUser;
+      }
+      const activeWards = await this.wardBoundaryService.getActiveWards();
+      if (activeWards.length > 0) {
+        return activeWards[0];
+      }
+    }
+
+    throw new BadRequestException(
+      'Vị trí sự cố nằm ngoài phạm vi các phường đang phục vụ tại tỉnh Đồng Nai. Vui lòng ghim lại trên bản đồ hoặc chọn phường hợp lệ.',
+    );
+  }
+
+  private async generateNextIssueCode(
+    manager: EntityManager,
+    txIssueRepo: Repository<Issue>,
+  ): Promise<string> {
+    const year = new Date().getFullYear();
+    let nextNumber: number | null = null;
+
+    if (typeof manager.query === 'function') {
+      await manager.query('CREATE SEQUENCE IF NOT EXISTS issue_code_seq');
+      const seqRows = await manager.query<Array<{ nextval: string | number }>>(
+        "SELECT nextval('issue_code_seq') AS nextval",
+      );
+      const rawNext = seqRows?.[0]?.nextval;
+      if (rawNext !== undefined && Number.isFinite(Number(rawNext))) {
+        nextNumber = Number(rawNext);
+      }
+    }
+
     const latest = await txIssueRepo.find({
       order: { id: 'DESC' },
       take: 1,
     });
-    const nextNumber = (latest[0]?.id ?? 0) + 1;
-    return `HT-2026-${String(nextNumber).padStart(3, '0')}`;
+    const minNext = (latest[0]?.id ?? 0) + 1;
+
+    if (nextNumber === null) {
+      nextNumber = minNext;
+    } else if (nextNumber < minNext) {
+      if (typeof manager.query === 'function') {
+        await manager.query("SELECT setval('issue_code_seq', $1, true)", [
+          minNext,
+        ]);
+      }
+      nextNumber = minNext;
+    }
+
+    return `HT-${year}-${String(nextNumber).padStart(3, '0')}`;
   }
 
   private applyPublicPortalVisibility(qb: SelectQueryBuilder<Issue>): void {
@@ -762,6 +866,7 @@ export class IssuesService {
       longitude: issue.longitude,
       addressText: issue.addressText,
       ward: issue.ward,
+      wardPublicId: issue.wardUnit?.publicId ?? null,
       thumbnailUrl: issue.thumbnailUrl,
       reportCount: issue.reportCount,
       assignedUnit,

@@ -28,6 +28,11 @@ export class QueryIssuesDto extends PaginationQueryDto {
   @IsEnum(IssueStatus)
   status?: IssueStatus;
 
+  /** Lọc theo publicId phường/xã */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
+
   /** Lọc theo phường/xã */
   @IsOptional()
   @IsString()
@@ -66,6 +71,11 @@ export class QueryMapPointsDto {
   @IsOptional()
   @IsEnum(IssueStatus)
   status?: IssueStatus;
+
+  /** Lọc theo publicId phường/xã */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
 
   /** Lọc theo phường/xã */
   @IsOptional()

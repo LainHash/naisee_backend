@@ -19,6 +19,7 @@ export class VerificationIssueSummaryDto {
   longitude: number;
   addressText: string;
   ward: string;
+  wardPublicId?: string | null;
   thumbnailUrl: string | null;
   reportCount: number;
   dueAt: Date | null;
@@ -49,6 +50,7 @@ export class VerificationTaskDto {
   volunteerName: string | null;
   media: IssueMediaItemDto[];
   issue: VerificationIssueSummaryDto;
+  distanceMeters?: number;
   createdAt: Date;
   updatedAt: Date;
 }

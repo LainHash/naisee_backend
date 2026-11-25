@@ -185,6 +185,8 @@ describe('StaffIssuesService', () => {
         issuesService as never,
         new IssuePriorityService(),
       ),
+      issuesService: issuesService as never,
+      qb,
       txProgressRepo,
       updateBuilder,
     };
@@ -245,6 +247,24 @@ describe('StaffIssuesService', () => {
     expect(source.isDuplicate).toBe(true);
     expect(source.duplicateOfId).toBe(target.id);
     expect(updateBuilder.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('filters staff issues by ward or wardPublicId without cross-ward restriction', async () => {
+    const issue = makeIssue();
+    const { service, qb } = createHarness([issue]);
+
+    await service.findStaffList({
+      ward: 'Long Khánh',
+      wardPublicId: 'ward-uuid-11',
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'wardUnit.publicId = :wardPublicId',
+      { wardPublicId: 'ward-uuid-11' },
+    );
+    expect(qb.andWhere).toHaveBeenCalledWith('LOWER(issue.ward) LIKE :ward', {
+      ward: '%long khánh%',
+    });
   });
 });
 

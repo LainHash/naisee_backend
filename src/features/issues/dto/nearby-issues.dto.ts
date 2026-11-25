@@ -47,6 +47,16 @@ export class NearbyIssuesQueryDto {
   @IsEnum(IssueStatus)
   status?: IssueStatus;
 
+  /** Lọc theo publicId phường/xã */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
+
+  /** Lọc theo tên phường/xã */
+  @IsOptional()
+  @IsString()
+  ward?: string;
+
   /**
    * Mặc định false (chỉ trả hồ sơ đủ điều kiện công khai publicReview.verified + in_progress/resolved).
    * Truyền true khi dùng cho Bước 2 wizard gửi mới để phát hiện phản ánh trùng chưa duyệt công khai.

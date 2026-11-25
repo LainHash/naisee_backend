@@ -122,6 +122,7 @@ describe('IssuesService (public & citizen flows)', () => {
   function createService(issues: Issue[] = [baseIssue]) {
     const qb = {
       innerJoin: vi.fn().mockReturnThis(),
+      leftJoin: vi.fn().mockReturnThis(),
       innerJoinAndSelect: vi.fn().mockReturnThis(),
       leftJoinAndSelect: vi.fn().mockReturnThis(),
       select: vi.fn().mockReturnThis(),
@@ -162,21 +163,21 @@ describe('IssuesService (public & citizen flows)', () => {
       save: vi.fn(async (data: unknown) => data),
     };
 
+    const txManager: {
+      getRepository: (e: { name?: string }) => unknown;
+      query?: ReturnType<typeof vi.fn>;
+    } = {
+      getRepository: (entity: { name?: string }) => {
+        if (entity.name === 'Issue') return txIssueRepo;
+        if (entity.name === 'Report') return txReportRepo;
+        if (entity.name === 'IssueMedia') return txMediaRepo;
+        return txProgressRepo;
+      },
+    };
+
     const manager = {
       transaction: vi.fn(
-        async (
-          cb: (m: {
-            getRepository: (e: { name?: string }) => unknown;
-          }) => Promise<unknown>,
-        ) =>
-          cb({
-            getRepository: (entity: { name?: string }) => {
-              if (entity.name === 'Issue') return txIssueRepo;
-              if (entity.name === 'Report') return txReportRepo;
-              if (entity.name === 'IssueMedia') return txMediaRepo;
-              return txProgressRepo;
-            },
-          }),
+        async (cb: (m: typeof txManager) => Promise<unknown>) => cb(txManager),
       ),
       getRepository: vi.fn().mockReturnValue({
         createQueryBuilder: vi.fn().mockReturnValue({
@@ -187,6 +188,37 @@ describe('IssuesService (public & citizen flows)', () => {
           ]),
         }),
       }),
+    };
+
+    const wardBoundaryService = {
+      resolveByCoordinates: vi.fn(async (lat: number, lng: number) => {
+        if (lat >= 10.93 && lat <= 10.968 && lng >= 106.812 && lng <= 106.85) {
+          return {
+            id: 1,
+            publicId: 'ward-uuid-1',
+            code: 'DN-TRAN-BIEN',
+            name: 'Phường Trấn Biên',
+          };
+        }
+        if (lat >= 10.92 && lat <= 10.96 && lng >= 107.215 && lng <= 107.255) {
+          return {
+            id: 11,
+            publicId: 'ward-uuid-11',
+            code: 'DN-LONG-KHANH',
+            name: 'Phường Long Khánh',
+          };
+        }
+        return null;
+      }),
+      findActiveWard: vi.fn().mockResolvedValue(null),
+      getActiveWards: vi.fn().mockResolvedValue([
+        {
+          id: 1,
+          publicId: 'ward-uuid-1',
+          code: 'DN-TRAN-BIEN',
+          name: 'Phường Trấn Biên',
+        },
+      ]),
     };
 
     const issueRepo = {
@@ -210,12 +242,15 @@ describe('IssuesService (public & citizen flows)', () => {
         categoryRepo as never,
         new IssueGeoService(),
         new IssuePriorityService(),
+        wardBoundaryService as never,
       ),
       issueRepo,
       qb,
       txIssueRepo,
       txReportRepo,
       txProgressRepo,
+      wardBoundaryService,
+      txManager,
     };
   }
 
@@ -233,6 +268,15 @@ describe('IssuesService (public & citizen flows)', () => {
     expect(qb.andWhere).toHaveBeenCalledWith(
       'issue.publicReviewVerified = :publicReviewVerified',
       { publicReviewVerified: true },
+    );
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'issue.latitude BETWEEN :minLat AND :maxLat AND issue.longitude BETWEEN :minLng AND :maxLng',
+      expect.objectContaining({
+        minLat: expect.any(Number),
+        maxLat: expect.any(Number),
+        minLng: expect.any(Number),
+        maxLng: expect.any(Number),
+      }),
     );
     expect(results).toHaveLength(1);
     expect(results[0].stage).toBe(WorkflowStage.WORK_ACCEPTED);
@@ -328,6 +372,60 @@ describe('IssuesService (public & citizen flows)', () => {
       }),
     );
     expect(res.code).toBe('HT-2026-001'); // mocked findOne returns baseIssue
+  });
+
+  it('auto-resolves ward from coordinates in another Dong Nai ward and rejects out-of-area points', async () => {
+    const { service, txIssueRepo } = createService();
+
+    await service.createIssue(citizenUser, {
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Ngập nước khu vực Long Khánh',
+      latitude: 10.935,
+      longitude: 107.238,
+      addressText: 'Đường Hùng Vương, Long Khánh',
+      imageUrls: ['https://res.cloudinary.com/demo/image/upload/lk.jpg'],
+    });
+
+    expect(txIssueRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ward: 'Phường Long Khánh',
+        wardId: 11,
+      }),
+    );
+
+    await expect(
+      service.createIssue(citizenUser, {
+        categoryCode: 'ROAD_SURFACE',
+        title: 'Ngoài vùng phục vụ',
+        latitude: 21.0285,
+        longitude: 105.8542,
+        addressText: 'Hà Nội',
+        imageUrls: ['https://res.cloudinary.com/demo/image/upload/hn.jpg'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('uses PostgreSQL issue_code_seq when manager.query is available', async () => {
+    const { service, txIssueRepo, txManager } = createService();
+    txManager.query = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ nextval: '108' }]);
+
+    await service.createIssue(citizenUser, {
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Sự cố dùng sequence',
+      latitude: 10.952,
+      longitude: 106.825,
+      addressText: 'Đường 30/4, Phường Trấn Biên',
+      imageUrls: ['https://res.cloudinary.com/demo/image/upload/seq.jpg'],
+    });
+
+    expect(txIssueRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'HT-2026-108',
+      }),
+    );
   });
 
   it('throws BadRequestException when creating issue without category', async () => {

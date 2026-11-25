@@ -17,12 +17,15 @@ import { User } from '../../auth/entities/user.entity.js';
 import type { Feedback } from '../../feedback/entities/feedback.entity.js';
 import { Department } from '../../master-data/entities/department.entity.js';
 import { IssueCategory } from '../../master-data/entities/issue-category.entity.js';
+import type { Ward } from '../../master-data/entities/ward.entity.js';
 import type { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { Verification } from '../../verifications/entities/verification.entity.js';
 import type { ProgressUpdate } from './progress-update.entity.js';
 import type { Report } from './report.entity.js';
 
 @Entity('issues')
+@Index('IDX_issues_lat_lng', ['latitude', 'longitude'])
+@Index('IDX_issues_public_ward', ['status', 'publicReviewVerified', 'wardId'])
 export class Issue extends BaseCoreEntity {
   @Column({ type: 'varchar', length: 32, unique: true })
   code: string;
@@ -75,8 +78,17 @@ export class Issue extends BaseCoreEntity {
   @Column({ type: 'varchar', length: 500 })
   addressText: string;
 
+  @Index()
   @Column({ type: 'varchar', length: 128, default: 'Phường Trấn Biên' })
   ward: string;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  wardId: number | null;
+
+  @ManyToOne('Ward', (ward: Ward) => ward.issues, { nullable: true })
+  @JoinColumn({ name: 'wardId' })
+  wardUnit: Relation<Ward> | null;
 
   @Column({ type: 'text', nullable: true })
   thumbnailUrl: string | null;

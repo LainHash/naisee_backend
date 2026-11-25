@@ -3,11 +3,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Issue } from '../issues/entities/issue.entity.js';
 import { Report } from '../issues/entities/report.entity.js';
 import { IssueCategory } from '../master-data/entities/issue-category.entity.js';
+import { Ward } from '../master-data/entities/ward.entity.js';
 import { DashboardController } from './controllers/dashboard.controller.js';
 import { DashboardService } from './services/dashboard.service.js';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Issue, Report, IssueCategory])],
+  imports: [TypeOrmModule.forFeature([Issue, Report, IssueCategory, Ward])],
   controllers: [DashboardController],
   providers: [DashboardService],
   exports: [DashboardService],

@@ -83,6 +83,16 @@ export class QueryStaffIssuesDto extends PaginationQueryDto {
   @IsBoolean()
   includeDuplicates?: boolean;
 
+  /** Lọc theo publicId phường/xã */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
+
+  /** Lọc theo tên phường/xã */
+  @IsOptional()
+  @IsString()
+  ward?: string;
+
   /** Tìm kiếm theo mã hồ sơ, tiêu đề hoặc địa chỉ */
   @IsOptional()
   @IsString()

@@ -43,6 +43,7 @@ export class PublicIssueSummaryDto {
   longitude: number;
   addressText: string;
   ward: string;
+  wardPublicId?: string | null;
   thumbnailUrl: string | null;
   reportCount: number;
   assignedUnit: string | null;
@@ -158,6 +159,7 @@ export class MapIssuePointDto {
   longitude: number;
   addressText: string;
   ward: string;
+  wardPublicId?: string | null;
   reportCount: number;
   categoryCode: string;
   categoryName: string;

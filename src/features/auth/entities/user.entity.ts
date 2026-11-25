@@ -1,7 +1,8 @@
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import type { Relation } from 'typeorm';
 import { BaseCoreEntity } from '../../../core/database/base.entity.js';
 import type { Department } from '../../master-data/entities/department.entity.js';
+import type { Ward } from '../../master-data/entities/ward.entity.js';
 import { Role } from './role.entity.js';
 
 @Entity('users')
@@ -33,6 +34,14 @@ export class User extends BaseCoreEntity {
 
   @Column({ type: 'varchar', length: 128, default: 'Phường Trấn Biên' })
   ward: string;
+
+  @Index()
+  @Column({ type: 'int', nullable: true })
+  wardId: number | null;
+
+  @ManyToOne('Ward', (ward: Ward) => ward.users, { nullable: true })
+  @JoinColumn({ name: 'wardId' })
+  wardUnit: Relation<Ward> | null;
 
   @Column({ type: 'boolean', default: false })
   largeTextMode: boolean;

@@ -9,12 +9,18 @@ export class DashboardCategoryMetricDto {
 }
 
 export class DashboardWardMetricDto {
+  wardPublicId?: string | null;
+  code?: string | null;
   name: string;
   total: number;
   resolved: number;
+  pending: number;
+  overdue: number;
+  resolvedRate: number;
 }
 
 export class DashboardMetricsDto {
+  wardFilter?: string | null;
   totalReports: number;
   totalIssues: number;
   resolvedCount: number;

@@ -19,6 +19,7 @@ import {
 import type { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface.js';
 import { Issue } from '../../issues/entities/issue.entity.js';
 import { ProgressUpdate } from '../../issues/entities/progress-update.entity.js';
+import { IssueGeoService } from '../../issues/services/issue-geo.service.js';
 import { IssuesService } from '../../issues/services/issues.service.js';
 import { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { VerificationTaskDto } from '../dto/verification-response.dto.js';
@@ -46,6 +47,7 @@ export class VerificationsService {
     @InjectRepository(Issue)
     private readonly issueRepo: Repository<Issue>,
     private readonly issuesService: IssuesService,
+    private readonly geoService: IssueGeoService,
   ) {}
 
   async requestVerification(
@@ -149,6 +151,7 @@ export class VerificationsService {
       .createQueryBuilder('v')
       .innerJoinAndSelect('v.issue', 'issue')
       .innerJoinAndSelect('issue.category', 'category')
+      .leftJoinAndSelect('issue.wardUnit', 'wardUnit')
       .leftJoinAndSelect('issue.media', 'issueMedia')
       .leftJoinAndSelect('v.media', 'verificationMedia')
       .leftJoinAndSelect('v.volunteer', 'volunteer');
@@ -170,12 +173,79 @@ export class VerificationsService {
       });
     }
 
+    if (query.wardPublicId) {
+      qb.andWhere('wardUnit.publicId = :wardPublicId', {
+        wardPublicId: query.wardPublicId,
+      });
+    }
+    if (query.ward?.trim()) {
+      qb.andWhere('LOWER(issue.ward) LIKE :ward', {
+        ward: `%${query.ward.trim().toLowerCase()}%`,
+      });
+    }
+
     if (query.search?.trim()) {
       const term = `%${query.search.trim().toLowerCase()}%`;
       qb.andWhere(
         '(LOWER(issue.code) LIKE :term OR LOWER(issue.title) LIKE :term OR LOWER(issue.addressText) LIKE :term)',
         { term },
       );
+    }
+
+    const hasGeoFilter =
+      query.lat !== undefined && query.lng !== undefined;
+    if (hasGeoFilter) {
+      const radiusMeters = query.radiusMeters ?? 5000;
+      const bbox = this.geoService.calculateBoundingBox(
+        query.lat!,
+        query.lng!,
+        radiusMeters,
+      );
+      qb.andWhere(
+        'issue.latitude BETWEEN :minLat AND :maxLat AND issue.longitude BETWEEN :minLng AND :maxLng',
+        bbox,
+      );
+
+      const candidates = await qb.getMany();
+      const now = new Date();
+      const rankOrder: Record<VerificationStatus, number> = {
+        [VerificationStatus.IN_PROGRESS]: 1,
+        [VerificationStatus.OPEN]: 2,
+        [VerificationStatus.COMPLETED]: 3,
+        [VerificationStatus.CANCELLED]: 4,
+      };
+
+      const filtered = candidates
+        .map((item) => {
+          const distanceMeters = this.geoService.calculateDistanceMeters(
+            query.lat!,
+            query.lng!,
+            item.issue.latitude,
+            item.issue.longitude,
+          );
+          return Object.assign(this.toTaskDto(item, user, now), {
+            distanceMeters,
+          });
+        })
+        .filter((item) => item.distanceMeters <= radiusMeters)
+        .sort((a, b) => {
+          const rankDiff = rankOrder[a.status] - rankOrder[b.status];
+          if (rankDiff !== 0) return rankDiff;
+          return a.distanceMeters - b.distanceMeters;
+        });
+
+      const total = filtered.length;
+      const start = (page - 1) * limit;
+      return {
+        success: true,
+        data: filtered.slice(start, start + limit),
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+        },
+      };
     }
 
     qb.addSelect(
@@ -352,7 +422,7 @@ export class VerificationsService {
   private async resolveVerification(identifier: string): Promise<Verification> {
     const trimmed = identifier.trim();
     const relations = {
-      issue: { category: true, media: true },
+      issue: { category: true, media: true, wardUnit: true },
       media: true,
       volunteer: true,
     } as const;
@@ -442,6 +512,7 @@ export class VerificationsService {
         longitude: issue.longitude,
         addressText: issue.addressText,
         ward: issue.ward,
+        wardPublicId: issue.wardUnit?.publicId ?? null,
         thumbnailUrl: issue.thumbnailUrl,
         reportCount: issue.reportCount,
         dueAt: issue.dueAt,

@@ -8,6 +8,7 @@ import {
   WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
 import type { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface.js';
+import { IssueGeoService } from '../../issues/services/issue-geo.service.js';
 import { VerificationsService } from './verifications.service.js';
 
 describe('VerificationsService', () => {
@@ -82,7 +83,20 @@ describe('VerificationsService', () => {
       save: vi.fn(async (data: unknown) => data),
     };
     let affectedRows = 1;
+    const qb = {
+      innerJoinAndSelect: vi.fn().mockReturnThis(),
+      leftJoinAndSelect: vi.fn().mockReturnThis(),
+      andWhere: vi.fn().mockReturnThis(),
+      addSelect: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      addOrderBy: vi.fn().mockReturnThis(),
+      skip: vi.fn().mockReturnThis(),
+      take: vi.fn().mockReturnThis(),
+      getMany: vi.fn(async () => [verificationRow]),
+      getManyAndCount: vi.fn(async () => [[verificationRow], 1]),
+    };
     const mockVerificationRepo = {
+      createQueryBuilder: vi.fn().mockReturnValue(qb),
       findOne: vi.fn(async () => verificationRow),
       save: vi.fn(async (entity: unknown) => entity),
       manager: {
@@ -113,10 +127,12 @@ describe('VerificationsService', () => {
       mockVerificationRepo as never,
       mockIssueRepo as never,
       issuesService as never,
+      new IssueGeoService(),
     );
 
     return {
       service,
+      qb,
       verificationRow,
       setAffectedRows: (n: number) => {
         affectedRows = n;
@@ -156,5 +172,29 @@ describe('VerificationsService', () => {
       WorkflowStage.VERIFICATION_SUBMITTED,
     );
     expect(verificationRow.issue.status).toBe(IssueStatus.VERIFYING);
+  });
+
+  it('filters volunteer verification tasks by ward and geo radius', async () => {
+    const { service, qb } = createHarness();
+
+    const res = await service.findVolunteerList(volunteerUser, {
+      ward: 'Trấn Biên',
+      lat: 10.9465,
+      lng: 106.8425,
+      radiusMeters: 1000,
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith('LOWER(issue.ward) LIKE :ward', {
+      ward: '%trấn biên%',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      'issue.latitude BETWEEN :minLat AND :maxLat AND issue.longitude BETWEEN :minLng AND :maxLng',
+      expect.objectContaining({
+        minLat: expect.any(Number),
+        maxLat: expect.any(Number),
+      }),
+    );
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0].distanceMeters).toBe(0);
   });
 });

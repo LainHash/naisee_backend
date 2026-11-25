@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  IsUUID,
   Max,
   MaxLength,
   Min,
@@ -58,6 +59,40 @@ export class QueryVolunteerVerificationsDto extends PaginationQueryDto {
   @Transform(toOptionalBoolean)
   @IsBoolean()
   mine?: boolean;
+
+  /** Lọc theo publicId phường/xã */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
+
+  /** Lọc theo tên phường/xã */
+  @IsOptional()
+  @IsString()
+  ward?: string;
+
+  /** Vĩ độ tâm tìm nhiệm vụ gần tôi */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  /** Kinh độ tâm tìm nhiệm vụ gần tôi */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  /** Bán kính tìm nhiệm vụ gần tôi (mét, mặc định 5000m khi truyền lat/lng) */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(100)
+  @Max(50000)
+  radiusMeters?: number;
 
   /** Tìm kiếm theo mã hồ sơ, tiêu đề hoặc địa chỉ */
   @IsOptional()
