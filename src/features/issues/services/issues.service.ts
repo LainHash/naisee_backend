@@ -22,6 +22,7 @@ import type { CreateIssueDto } from '../dto/create-issue.dto.js';
 import type {
   FeedbackSummaryDto,
   IssueVerificationSummaryDto,
+  MapPointsResponseDto,
   MyIssueItemDto,
   NearbyIssueItemDto,
   PublicIssueDetailDto,
@@ -29,7 +30,11 @@ import type {
 } from '../dto/issue-response.dto.js';
 import type { MeTooIssueDto } from '../dto/me-too-issue.dto.js';
 import type { NearbyIssuesQueryDto } from '../dto/nearby-issues.dto.js';
-import type { QueryIssuesDto, QueryMyIssuesDto } from '../dto/query-issues.dto.js';
+import type {
+  QueryIssuesDto,
+  QueryMapPointsDto,
+  QueryMyIssuesDto,
+} from '../dto/query-issues.dto.js';
 import { Issue } from '../entities/issue.entity.js';
 import { ProgressUpdate } from '../entities/progress-update.entity.js';
 import { Report } from '../entities/report.entity.js';
@@ -127,7 +132,105 @@ export class IssuesService {
       .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
 
     this.applyPublicPortalVisibility(qb);
+    this.applyPublicQueryFilters(qb, query);
 
+    qb.orderBy('issue.createdAt', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    const [items, total] = await qb.getManyAndCount();
+    const now = new Date();
+
+    return {
+      success: true,
+      data: items.map((issue) => this.toPublicSummary(issue, now)),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    };
+  }
+
+  async findMapPoints(query: QueryMapPointsDto): Promise<MapPointsResponseDto> {
+    const limit = query.limit ?? 5000;
+    const qb = this.issueRepo
+      .createQueryBuilder('issue')
+      .innerJoin('issue.category', 'category')
+      .select([
+        'issue.publicId',
+        'issue.code',
+        'issue.title',
+        'issue.status',
+        'issue.stage',
+        'issue.priority',
+        'issue.latitude',
+        'issue.longitude',
+        'issue.addressText',
+        'issue.ward',
+        'issue.reportCount',
+        'issue.updatedAt',
+        'category.code',
+        'category.name',
+      ])
+      .where('issue.isPublic = :isPublic', { isPublic: true })
+      .andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
+
+    this.applyPublicPortalVisibility(qb);
+    this.applyPublicQueryFilters(qb, query);
+
+    if (query.bbox) {
+      const [minLng, minLat, maxLng, maxLat] = query.bbox
+        .split(',')
+        .map((value) => Number(value));
+      if (
+        Number.isFinite(minLng) &&
+        Number.isFinite(minLat) &&
+        Number.isFinite(maxLng) &&
+        Number.isFinite(maxLat)
+      ) {
+        qb.andWhere(
+          'issue.longitude BETWEEN :minLng AND :maxLng AND issue.latitude BETWEEN :minLat AND :maxLat',
+          { minLng, maxLng, minLat, maxLat },
+        );
+      }
+    }
+
+    const total = await qb.getCount();
+    const rows = await qb
+      .orderBy('issue.createdAt', 'DESC')
+      .take(limit)
+      .getMany();
+
+    return {
+      total,
+      points: rows.map((issue) => ({
+        publicId: issue.publicId,
+        code: issue.code,
+        title: issue.title,
+        status: issue.status,
+        stage: issue.stage,
+        priority: issue.priority,
+        latitude: issue.latitude,
+        longitude: issue.longitude,
+        addressText: issue.addressText,
+        ward: issue.ward,
+        reportCount: issue.reportCount,
+        categoryCode: issue.category.code,
+        categoryName: issue.category.name,
+        updatedAt: issue.updatedAt,
+      })),
+    };
+  }
+
+  private applyPublicQueryFilters(
+    qb: SelectQueryBuilder<Issue>,
+    query: Pick<
+      QueryIssuesDto,
+      'categoryPublicId' | 'categoryCode' | 'status' | 'ward' | 'search'
+    >,
+  ): void {
     if (query.categoryPublicId) {
       qb.andWhere('category.publicId = :categoryPublicId', {
         categoryPublicId: query.categoryPublicId,
@@ -153,24 +256,6 @@ export class IssuesService {
         { term },
       );
     }
-
-    qb.orderBy('issue.createdAt', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit);
-
-    const [items, total] = await qb.getManyAndCount();
-    const now = new Date();
-
-    return {
-      success: true,
-      data: items.map((issue) => this.toPublicSummary(issue, now)),
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.max(1, Math.ceil(total / limit)),
-      },
-    };
   }
 
   async findPublicDetail(identifier: string): Promise<PublicIssueDetailDto> {
