@@ -102,6 +102,9 @@ describe('StaffIssuesService', () => {
     };
     const txMediaRepo = {
       createQueryBuilder: vi.fn().mockReturnValue(updateBuilder),
+      count: vi.fn().mockResolvedValue(1),
+      create: vi.fn((data: Record<string, unknown>) => data),
+      save: vi.fn(async (data: unknown) => data),
     };
     const txProgressRepo = {
       create: vi.fn((data: Record<string, unknown>) => data),
@@ -118,6 +121,12 @@ describe('StaffIssuesService', () => {
         ) ?? null,
       ),
       manager: {
+        getRepository: (entity: { name?: string }) => {
+          if (entity.name === 'Issue') return txIssueRepo;
+          if (entity.name === 'Report') return txReportRepo;
+          if (entity.name === 'IssueMedia') return txMediaRepo;
+          return txProgressRepo;
+        },
         transaction: vi.fn(
           async (
             cb: (m: {
@@ -174,6 +183,7 @@ describe('StaffIssuesService', () => {
             verified: found?.publicReviewVerified ?? false,
             approvedAt: found?.publicApprovedAt ?? null,
           },
+          resolutionNote: found?.resolutionNote ?? null,
         };
       }),
     };
@@ -265,6 +275,50 @@ describe('StaffIssuesService', () => {
     expect(qb.andWhere).toHaveBeenCalledWith('LOWER(issue.ward) LIKE :ward', {
       ward: '%long khánh%',
     });
+  });
+
+  it('formats short resolutionNote into official municipal response and preserves custom letters', async () => {
+    const issue = makeIssue({
+      status: IssueStatus.IN_PROGRESS,
+      stage: WorkflowStage.RESOLUTION_SUBMITTED,
+      assignedDepartmentId: 1,
+      assignedDepartment: {
+        id: 1,
+        publicId: 'dept-uuid-1',
+        code: 'ROAD_MAINTENANCE',
+        name: 'Đội duy tu đường bộ',
+      } as Issue['assignedDepartment'],
+    });
+    const { service, txProgressRepo } = createHarness([issue]);
+
+    const res = await service.resolveIssue('HT-2026-010', staffUser, {
+      resolutionNote: 'Đơn vị đã thảm vá dứt điểm ổ gà và kiểm tra an toàn giao thông.',
+    });
+
+    expect(res.status).toBe(IssueStatus.RESOLVED);
+    expect(res.resolutionNote).toContain('Kính gửi: Ông/Bà');
+    expect(res.resolutionNote).toContain('Đội duy tu đường bộ - UBND Phường Trấn Biên xin thông báo kết quả như sau:');
+    expect(res.resolutionNote).toContain('Đơn vị đã thảm vá dứt điểm ổ gà và kiểm tra an toàn giao thông.');
+    expect(res.resolutionNote).toContain('UBND Phường Trấn Biên');
+    expect(txProgressRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: 'Đã nghiệm thu hoàn thành: Đơn vị đã thảm vá dứt điểm ổ gà và kiểm tra an toàn giao thông.',
+      }),
+    );
+
+    const customLetter = 'Kính gửi: Ông/Bà\n\nNội dung tùy chỉnh riêng.\n\nUBND Phường Trấn Biên';
+    const customIssue = makeIssue({
+      id: 12,
+      publicId: 'issue-uuid-12',
+      code: 'HT-2026-012',
+      status: IssueStatus.IN_PROGRESS,
+      stage: WorkflowStage.RESOLUTION_SUBMITTED,
+    });
+    const { service: svc2 } = createHarness([customIssue]);
+    const customRes = await svc2.resolveIssue('HT-2026-012', staffUser, {
+      resolutionNote: customLetter,
+    });
+    expect(customRes.resolutionNote).toBe(customLetter);
   });
 });
 

@@ -20,6 +20,10 @@ import type {
   StaffIssueDetailDto,
   StaffIssueItemDto,
 } from '../dto/issue-response.dto.js';
+import {
+  extractResolutionSummary,
+  formatOfficialResolutionResponse,
+} from '../utils/official-response.util.js';
 import type {
   AssignIssueDto,
   MergeIssuesDto,
@@ -664,7 +668,15 @@ export class StaffIssuesService {
       }
     }
 
-    const resolutionNote = dto.resolutionNote.trim();
+    const rawResolutionNote = dto.resolutionNote.trim();
+    const resolutionNote = formatOfficialResolutionResponse({
+      wardName: issue.wardUnit?.name ?? issue.ward,
+      departmentName: issue.assignedDepartment?.name,
+      issueCode: issue.code,
+      issueTitle: issue.title,
+      detailNote: rawResolutionNote,
+    });
+    const timelineSummary = extractResolutionSummary(resolutionNote);
     const resolvedAt = new Date();
 
     await this.issueRepo.manager.transaction(async (manager) => {
@@ -704,7 +716,7 @@ export class StaffIssuesService {
           toStatus: IssueStatus.RESOLVED,
           previousStage,
           newStage: WorkflowStage.COMPLETED,
-          content: `Đã nghiệm thu hoàn thành: ${resolutionNote}`,
+          content: `Đã nghiệm thu hoàn thành: ${timelineSummary}`,
           isPublic: true,
         }),
       );
@@ -716,7 +728,7 @@ export class StaffIssuesService {
   private async findIssueOrThrow(identifier: string): Promise<Issue> {
     const issue = await this.issueRepo.findOne({
       where: this.issuesService.buildIdentifierWhere(identifier),
-      relations: { category: true, assignedDepartment: true },
+      relations: { category: true, assignedDepartment: true, wardUnit: true },
     });
 
     if (!issue) {

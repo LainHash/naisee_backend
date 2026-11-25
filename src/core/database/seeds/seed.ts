@@ -21,6 +21,10 @@ import { IssueCategory } from '../../../features/master-data/entities/issue-cate
 import { Ward } from '../../../features/master-data/entities/ward.entity.js';
 import { IssueMedia } from '../../../features/media/entities/issue-media.entity.js';
 import { Verification } from '../../../features/verifications/entities/verification.entity.js';
+import {
+  formatOfficialResolutionResponse,
+  getDefaultResolutionDetail,
+} from '../../../features/issues/utils/official-response.util.js';
 import { loadSeedWorkbook } from './seed-excel.helper.js';
 import { upsertWardsAndBackfill } from './ward-seed.helper.js';
 
@@ -288,7 +292,13 @@ export async function runSeed(
         '';
       const resolutionNote =
         spec.status === IssueStatus.RESOLVED
-          ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
+          ? formatOfficialResolutionResponse({
+              wardName: spec.ward,
+              departmentName: defaultDept.name,
+              issueCode: spec.code,
+              issueTitle: spec.title,
+              detailNote: getDefaultResolutionDetail(spec.categoryCode),
+            })
           : null;
       const rejectionReasons = [
         'Phản ánh chưa đủ thông tin vị trí chính xác để kiểm tra thực địa.',
