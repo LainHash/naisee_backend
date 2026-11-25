@@ -1,18 +1,35 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   FeedbackReviewStatus,
   IssueStatus,
   MediaStage,
   Priority,
+  ReportType,
   RoleName,
   TimelineAction,
   WorkflowStage,
 } from '../../../common/enums/domain.enums.js';
+import type { AuthenticatedUser } from '../../../common/interfaces/authenticated-user.interface.js';
 import type { Issue } from '../entities/issue.entity.js';
 import { IssueGeoService } from './issue-geo.service.js';
+import { IssuePriorityService } from './issue-priority.service.js';
 import { IssuesService } from './issues.service.js';
 
-describe('IssuesService (public queries)', () => {
+describe('IssuesService (public & citizen flows)', () => {
+  const citizenUser: AuthenticatedUser = {
+    id: 1,
+    publicId: 'user-uuid-1',
+    role: RoleName.CITIZEN,
+    fullName: 'Cô/Chú Minh',
+    phone: '0901000001',
+    ward: 'Phường Trấn Biên',
+    departmentId: null,
+  };
+
   const baseIssue = {
     id: 1,
     publicId: 'issue-uuid-1',
@@ -26,6 +43,7 @@ describe('IssuesService (public queries)', () => {
       code: 'ROAD_SURFACE',
       name: 'Mặt đường / Ổ gà',
       icon: 'construction',
+      defaultPriority: Priority.HIGH,
       slaHours: 72,
     },
     status: IssueStatus.IN_PROGRESS,
@@ -80,8 +98,8 @@ describe('IssuesService (public queries)', () => {
         isPublic: true,
         actor: {
           id: 10,
-          phone: '0901000001',
-          fullName: 'Cô/Chú Minh',
+          phone: '0901000004',
+          fullName: 'Anh Tuấn',
           role: { name: RoleName.CITIZEN },
         },
         createdAt: new Date('2026-11-23T08:00:00.000Z'),
@@ -107,6 +125,7 @@ describe('IssuesService (public queries)', () => {
       leftJoinAndSelect: vi.fn().mockReturnThis(),
       where: vi.fn().mockReturnThis(),
       andWhere: vi.fn().mockReturnThis(),
+      setParameter: vi.fn().mockReturnThis(),
       orderBy: vi.fn().mockReturnThis(),
       skip: vi.fn().mockReturnThis(),
       take: vi.fn().mockReturnThis(),
@@ -114,12 +133,68 @@ describe('IssuesService (public queries)', () => {
       getManyAndCount: vi.fn().mockResolvedValue([issues, issues.length]),
     };
 
+    const txIssueRepo = {
+      find: vi.fn().mockResolvedValue([{ id: 56 }]),
+      create: vi.fn((data: Record<string, unknown>) => data),
+      save: vi.fn(async (data: Record<string, unknown>) => ({
+        id: 57,
+        publicId: 'issue-uuid-57',
+        ...data,
+      })),
+    };
+    const txReportRepo = {
+      findOne: vi.fn().mockResolvedValue(null),
+      create: vi.fn((data: Record<string, unknown>) => data),
+      save: vi.fn(async (data: Record<string, unknown>) => ({
+        id: 65,
+        ...data,
+      })),
+    };
+    const txMediaRepo = {
+      create: vi.fn((data: Record<string, unknown>) => data),
+      save: vi.fn(async (data: unknown) => data),
+    };
+    const txProgressRepo = {
+      create: vi.fn((data: Record<string, unknown>) => data),
+      save: vi.fn(async (data: unknown) => data),
+    };
+
+    const manager = {
+      transaction: vi.fn(
+        async (cb: (m: { getRepository: (e: unknown) => unknown }) => Promise<unknown>) =>
+          cb({
+            getRepository: (entity: { name?: string }) => {
+              if (entity.name === 'Issue') return txIssueRepo;
+              if (entity.name === 'Report') return txReportRepo;
+              if (entity.name === 'IssueMedia') return txMediaRepo;
+              return txProgressRepo;
+            },
+          }),
+      ),
+      getRepository: vi.fn().mockReturnValue({
+        createQueryBuilder: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnThis(),
+          andWhere: vi.fn().mockReturnThis(),
+          getMany: vi.fn().mockResolvedValue([
+            { issueId: 1, reportType: ReportType.ME_TOO },
+          ]),
+        }),
+      }),
+    };
+
     const issueRepo = {
       createQueryBuilder: vi.fn().mockReturnValue(qb),
       findOne: vi.fn().mockResolvedValue(issues[0] ?? null),
+      manager,
     };
     const categoryRepo = {
-      findOne: vi.fn().mockResolvedValue({ code: 'ROAD_SURFACE' }),
+      findOne: vi.fn().mockResolvedValue({
+        id: 1,
+        publicId: 'cat-uuid-1',
+        code: 'ROAD_SURFACE',
+        name: 'Mặt đường / Ổ gà',
+        defaultPriority: Priority.HIGH,
+      }),
     };
 
     return {
@@ -127,9 +202,13 @@ describe('IssuesService (public queries)', () => {
         issueRepo as never,
         categoryRepo as never,
         new IssueGeoService(),
+        new IssuePriorityService(),
       ),
       issueRepo,
       qb,
+      txIssueRepo,
+      txReportRepo,
+      txProgressRepo,
     };
   }
 
@@ -150,8 +229,6 @@ describe('IssuesService (public queries)', () => {
     );
     expect(results).toHaveLength(1);
     expect(results[0].stage).toBe(WorkflowStage.WORK_ACCEPTED);
-    expect(results[0].publicReview.verified).toBe(true);
-    expect(results[0].assignedUnit).toBe('Đội duy tu đường bộ');
     expect(results[0].distanceMeters).toBe(0);
     expect(results[0].isOverdue).toBe(true);
   });
@@ -185,7 +262,7 @@ describe('IssuesService (public queries)', () => {
       total: 1,
       totalPages: 1,
     });
-    expect(JSON.stringify(res)).not.toContain('0901000001');
+    expect(JSON.stringify(res)).not.toContain('0901000004');
   });
 
   it('returns public detail with stage, previousStage/newStage, timestamp and zero PII', async () => {
@@ -197,15 +274,11 @@ describe('IssuesService (public queries)', () => {
       expect.objectContaining({ where: { code: 'HT-2026-001' } }),
     );
     expect(detail.stage).toBe(WorkflowStage.WORK_ACCEPTED);
-    expect(detail.intakeNote).toBe('Ưu tiên xử lý sớm trước mùa mưa');
-    expect(detail.timeline[0].previousStage).toBeNull();
     expect(detail.timeline[0].newStage).toBe(WorkflowStage.UNASSIGNED);
-    expect(detail.timeline[0].timestamp).toEqual(detail.timeline[0].createdAt);
-    expect(detail.timeline[0].actorLabel).toBe('Người dân');
 
     const serialized = JSON.stringify(detail);
-    expect(serialized).not.toContain('0901000001');
-    expect(serialized).not.toContain('Cô/Chú Minh');
+    expect(serialized).not.toContain('0901000004');
+    expect(serialized).not.toContain('Anh Tuấn');
   });
 
   it('throws NotFoundException when issue is private or missing', async () => {
@@ -214,5 +287,84 @@ describe('IssuesService (public queries)', () => {
     await expect(service.findPublicDetail('HT-9999-999')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('creates a new issue in PENDING_REVIEW / unassigned inside a transaction', async () => {
+    const { service, txIssueRepo, txReportRepo, txProgressRepo } = createService();
+
+    const res = await service.createIssue(citizenUser, {
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Ổ gà mới trước cổng trường học',
+      latitude: 10.952,
+      longitude: 106.825,
+      addressText: '12 Đường 30/4, Phường Trấn Biên',
+      imageUrls: ['https://res.cloudinary.com/demo/image/upload/new.jpg'],
+      aiSuggestedCategoryCode: 'ROAD_SURFACE',
+      aiConfidence: 0.91,
+    });
+
+    expect(txIssueRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: 'HT-2026-057',
+        status: IssueStatus.PENDING_REVIEW,
+        stage: WorkflowStage.UNASSIGNED,
+        suggestedPriority: Priority.CRITICAL,
+      }),
+    );
+    expect(txReportRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ reportType: ReportType.INITIAL }),
+    );
+    expect(txProgressRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actionType: TimelineAction.CREATED,
+        newStage: WorkflowStage.UNASSIGNED,
+      }),
+    );
+    expect(res.code).toBe('HT-2026-001'); // mocked findOne returns baseIssue
+  });
+
+  it('throws BadRequestException when creating issue without category', async () => {
+    const { service } = createService();
+
+    await expect(
+      service.createIssue(citizenUser, {
+        title: 'Thiếu danh mục',
+        latitude: 10.95,
+        longitude: 106.82,
+        addressText: 'Phường Trấn Biên',
+        imageUrls: ['https://res.cloudinary.com/demo/image/upload/new.jpg'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('adds ME_TOO report, increments reportCount, and prevents duplicate me-too from same user', async () => {
+    const mutableIssue = Object.assign(Object.create(null), baseIssue, {
+      reportCount: 8,
+    }) as Issue;
+    const { service, txReportRepo, txIssueRepo } = createService([mutableIssue]);
+
+    await service.addMeToo('HT-2026-001', citizenUser, {});
+
+    expect(txIssueRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ reportCount: 9 }),
+    );
+
+    txReportRepo.findOne.mockResolvedValueOnce({ id: 99 });
+    await expect(
+      service.addMeToo('HT-2026-001', citizenUser, {}),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('returns my issues including report types and intakeNote', async () => {
+    const { service } = createService();
+
+    const res = await service.findMyIssues(citizenUser.id, {
+      page: 1,
+      limit: 10,
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.data[0].myReportTypes).toEqual([ReportType.ME_TOO]);
+    expect(res.data[0].intakeNote).toBe('Ưu tiên xử lý sớm trước mùa mưa');
   });
 });

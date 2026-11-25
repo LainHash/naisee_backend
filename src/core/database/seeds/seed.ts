@@ -445,7 +445,10 @@ export async function runSeed(
       const defaultDept = departments.find(
         (d) => d.id === category.defaultDepartmentId,
       )!;
-      const reporter = citizenPool[idx % citizenPool.length];
+      const reporter =
+        spec.code === 'HT-2026-001'
+          ? users[3]
+          : citizenPool[idx % citizenPool.length];
 
       let createdAt = daysBefore(DEMO_ANCHOR_DATE, 2);
       let resolvedAt: Date | null = null;
@@ -580,7 +583,10 @@ export async function runSeed(
       );
 
       for (let r = 1; r < spec.reportCount; r++) {
-        const meTooUser = citizenPool[(idx + r) % citizenPool.length];
+        const meTooUser =
+          spec.code === 'HT-2026-001'
+            ? (r % 2 === 1 ? users[4] : users[3])
+            : citizenPool[(idx + r) % citizenPool.length];
         await reportRepo.save(
           reportRepo.create({
             issueId: issue.id,

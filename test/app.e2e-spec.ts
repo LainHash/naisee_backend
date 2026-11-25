@@ -157,6 +157,44 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.success).toBe(false);
   });
 
+  it('protects /issues/mine (401) and enforces CITIZEN/VOLUNTEER role + DTO validation on POST /issues', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/issues/mine')
+      .expect(401);
+
+    const staffToken = await jwtService.signAsync({
+      sub: 2,
+      publicId: 'uuid-staff',
+      role: RoleName.STAFF,
+      fullName: 'Chị Lan',
+      phone: '0901000002',
+      ward: 'Phường Trấn Biên',
+      departmentId: 1,
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/issues')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({})
+      .expect(403);
+
+    const citizenToken = await jwtService.signAsync({
+      sub: 1,
+      publicId: 'uuid-citizen',
+      role: RoleName.CITIZEN,
+      fullName: 'Cô/Chú Minh',
+      phone: '0901000001',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+
+    await request(app.getHttpServer())
+      .post('/api/v1/issues')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .send({ title: '' })
+      .expect(400);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
@@ -167,8 +205,10 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.paths?.['/api/v1/media/upload']).toBeDefined();
     expect(res.body.paths?.['/api/v1/ai/classify-image']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/nearby']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/issues/mine']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/issues/{publicId}/me-too']).toBeDefined();
   });
 
   afterEach(async () => {

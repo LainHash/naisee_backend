@@ -6,6 +6,7 @@ import { Issue } from './entities/issue.entity.js';
 import { ProgressUpdate } from './entities/progress-update.entity.js';
 import { Report } from './entities/report.entity.js';
 import { IssueGeoService } from './services/issue-geo.service.js';
+import { IssuePriorityService } from './services/issue-priority.service.js';
 import { IssuesService } from './services/issues.service.js';
 
 @Module({
@@ -14,7 +15,7 @@ import { IssuesService } from './services/issues.service.js';
     MasterDataModule,
   ],
   controllers: [IssuesController],
-  providers: [IssuesService, IssueGeoService],
-  exports: [TypeOrmModule, IssuesService, IssueGeoService],
+  providers: [IssuesService, IssueGeoService, IssuePriorityService],
+  exports: [TypeOrmModule, IssuesService, IssueGeoService, IssuePriorityService],
 })
 export class IssuesModule {}

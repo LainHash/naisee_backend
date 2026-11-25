@@ -1,6 +1,6 @@
 import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto.js';
-import { IssueStatus } from '../../../common/enums/domain.enums.js';
+import { IssueStatus, WorkflowStage } from '../../../common/enums/domain.enums.js';
 
 export class QueryIssuesDto extends PaginationQueryDto {
   /** Lọc theo publicId danh mục */
@@ -29,3 +29,14 @@ export class QueryIssuesDto extends PaginationQueryDto {
   search?: string;
 }
 
+export class QueryMyIssuesDto extends PaginationQueryDto {
+  /** Lọc theo trạng thái tổng quát */
+  @IsOptional()
+  @IsEnum(IssueStatus)
+  status?: IssueStatus;
+
+  /** Lọc theo bước nghiệp vụ chi tiết */
+  @IsOptional()
+  @IsEnum(WorkflowStage)
+  stage?: WorkflowStage;
+}

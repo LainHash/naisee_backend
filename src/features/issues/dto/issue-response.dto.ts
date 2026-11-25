@@ -3,6 +3,7 @@ import {
   IssueStatus,
   MediaStage,
   Priority,
+  ReportType,
   RoleName,
   TimelineAction,
   WorkflowStage,
@@ -58,6 +59,12 @@ export class PublicIssueSummaryDto {
 
 export class NearbyIssueItemDto extends PublicIssueSummaryDto {
   distanceMeters: number;
+}
+
+export class MyIssueItemDto extends PublicIssueSummaryDto {
+  intakeNote: string | null;
+  rejectionReason: string | null;
+  myReportTypes: ReportType[];
 }
 
 export class IssueMediaItemDto {
