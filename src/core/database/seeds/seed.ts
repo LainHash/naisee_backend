@@ -179,16 +179,21 @@ export async function runSeed(
     const citizenUsers = users.filter(
       (u) => u.roleId === roleMap.get(RoleName.CITIZEN)?.id,
     );
+    const staffUsers = users.filter(
+      (u) => u.roleId === roleMap.get(RoleName.STAFF)?.id,
+    );
+    const volunteerUsers = users.filter(
+      (u) => u.roleId === roleMap.get(RoleName.VOLUNTEER)?.id,
+    );
     const demoCitizen = citizenUsers[0] ?? users[0];
     const demoStaff =
-      users.find((u) => u.roleId === roleMap.get(RoleName.STAFF)?.id) ??
-      users[1] ??
-      users[0];
+      staffUsers[0] ?? users[1] ?? users[0];
     const demoVolunteer =
-      users.find((u) => u.roleId === roleMap.get(RoleName.VOLUNTEER)?.id) ??
-      users[2] ??
-      users[0];
+      volunteerUsers[0] ?? users[2] ?? users[0];
     const citizenPool = citizenUsers.length > 0 ? citizenUsers : [demoCitizen];
+    const staffPool = staffUsers.length > 0 ? staffUsers : [demoStaff];
+    const volunteerPool =
+      volunteerUsers.length > 0 ? volunteerUsers : [demoVolunteer];
 
     // Index fallback media presets from Excel sheet `media_presets`
     const beforePoolByCat = new Map<string, string[]>();
@@ -227,7 +232,9 @@ export async function runSeed(
           ? (citizenPool[1] ?? demoCitizen)
           : citizenPool[idx % citizenPool.length];
 
-      let createdAt = daysBefore(DEMO_ANCHOR_DATE, 2);
+      const actorStaff = staffPool[idx % staffPool.length] ?? demoStaff;
+
+      let createdAt = daysBefore(DEMO_ANCHOR_DATE, 1 + (idx % 12));
       let resolvedAt: Date | null = null;
       let dueAt: Date | null = null;
       let assignedDeptId: number | null = null;
@@ -248,13 +255,19 @@ export async function runSeed(
           createdAt.getTime() + category.slaHours * 60 * 60 * 1000,
         );
         assignedDeptId = defaultDept.id;
-        assignedById = demoStaff.id;
+        assignedById = actorStaff.id;
       } else if (spec.status === IssueStatus.IN_PROGRESS) {
         assignedDeptId = defaultDept.id;
-        assignedById = demoStaff.id;
+        assignedById = actorStaff.id;
         dueAt = spec.overdue
-          ? daysBefore(DEMO_ANCHOR_DATE, 1)
-          : new Date(DEMO_ANCHOR_DATE.getTime() + 2 * 24 * 60 * 60 * 1000);
+          ? daysBefore(DEMO_ANCHOR_DATE, 1 + (idx % 3))
+          : new Date(
+              DEMO_ANCHOR_DATE.getTime() + ((idx % 40) + 4) * 60 * 60 * 1000,
+            );
+      } else if (spec.status === IssueStatus.VERIFYING) {
+        dueAt = new Date(
+          DEMO_ANCHOR_DATE.getTime() + (24 + (idx % 24)) * 60 * 60 * 1000,
+        );
       }
 
       const categoryBeforePool = beforePoolByCat.get(spec.categoryCode) ?? [];
@@ -268,6 +281,15 @@ export async function runSeed(
         spec.status === IssueStatus.RESOLVED
           ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
           : null;
+      const rejectionReasons = [
+        'Phản ánh chưa đủ thông tin vị trí chính xác để kiểm tra thực địa.',
+        'Nội dung phản ánh thuộc phạm vi quản lý nội bộ hộ dân, không thuộc hạ tầng công cộng.',
+        'Trùng lặp với hồ sơ đã tiếp nhận trước đó tại cùng tuyến đường.',
+      ];
+      const rejectionReason =
+        spec.status === IssueStatus.REJECTED
+          ? rejectionReasons[idx % rejectionReasons.length]
+          : null;
 
       let stage = WorkflowStage.UNASSIGNED;
       if (spec.code === 'HT-2026-001') {
@@ -275,11 +297,23 @@ export async function runSeed(
       } else if (spec.status === IssueStatus.RECEIVED) {
         stage = WorkflowStage.RECEIVED;
       } else if (spec.status === IssueStatus.VERIFYING) {
-        stage = WorkflowStage.VERIFICATION_REQUESTED;
+        stage =
+          idx % 4 === 0
+            ? WorkflowStage.VOLUNTEER_ASSIGNED
+            : WorkflowStage.VERIFICATION_REQUESTED;
       } else if (spec.status === IssueStatus.IN_PROGRESS) {
-        stage = WorkflowStage.DEPARTMENT_ASSIGNED;
+        const stages = [
+          WorkflowStage.DEPARTMENT_ASSIGNED,
+          WorkflowStage.WORK_ACCEPTED,
+          WorkflowStage.DEPARTMENT_ASSIGNED,
+          WorkflowStage.WORK_ACCEPTED,
+          WorkflowStage.RESOLUTION_SUBMITTED,
+        ];
+        stage = stages[idx % stages.length];
       } else if (spec.status === IssueStatus.RESOLVED) {
         stage = WorkflowStage.COMPLETED;
+      } else if (spec.status === IssueStatus.REJECTED) {
+        stage = WorkflowStage.NOT_ACCEPTED;
       }
 
       const isPublicApproved =
@@ -323,6 +357,7 @@ export async function runSeed(
               ? 'Đã xác minh thực địa qua đoàn viên thanh niên, giao Đội duy tu đường bộ xử lý ưu tiên cao.'
               : null,
           resolutionNote,
+          rejectionReason,
           publicReviewVerified: isPublicApproved,
           publicApprovedAt: isPublicApproved ? createdAt : null,
           aiSuggestedCategoryId: category.id,
@@ -403,6 +438,57 @@ export async function runSeed(
         );
       }
 
+      if (spec.status === IssueStatus.REJECTED) {
+        await progressRepo.save(
+          progressRepo.create({
+            issueId: issue.id,
+            actorId: actorStaff.id,
+            actionType: TimelineAction.REJECTED,
+            fromStatus: IssueStatus.PENDING_REVIEW,
+            toStatus: IssueStatus.REJECTED,
+            previousStage: WorkflowStage.UNASSIGNED,
+            newStage: WorkflowStage.NOT_ACCEPTED,
+            content: rejectionReason ?? 'Không tiếp nhận hồ sơ phản ánh.',
+            isPublic: false,
+            createdAt,
+          }),
+        );
+      }
+
+      if (spec.status === IssueStatus.VERIFYING) {
+        await progressRepo.save(
+          progressRepo.create({
+            issueId: issue.id,
+            actorId: actorStaff.id,
+            actionType: TimelineAction.VERIFICATION_REQUESTED,
+            fromStatus: IssueStatus.RECEIVED,
+            toStatus: IssueStatus.VERIFYING,
+            previousStage: WorkflowStage.RECEIVED,
+            newStage: stage,
+            content: 'Đã gửi yêu cầu xác minh thực địa cho tình nguyện viên địa phương.',
+            isPublic: true,
+            createdAt,
+          }),
+        );
+
+        const isAssignedVolunteer = idx % 4 === 0;
+        const assignedVolunteer =
+          volunteerPool[idx % volunteerPool.length] ?? demoVolunteer;
+        await verificationRepo.save(
+          verificationRepo.create({
+            issueId: issue.id,
+            requestedById: actorStaff.id,
+            volunteerId: isAssignedVolunteer ? assignedVolunteer.id : null,
+            status: isAssignedVolunteer
+              ? VerificationStatus.IN_PROGRESS
+              : VerificationStatus.OPEN,
+            instruction:
+              'Kiểm tra thực tế tại hiện trường, chụp ảnh đối chiếu và đánh giá mức độ ảnh hưởng.',
+            dueAt,
+          }),
+        );
+      }
+
       if (
         spec.status === IssueStatus.IN_PROGRESS ||
         spec.status === IssueStatus.RESOLVED
@@ -410,7 +496,7 @@ export async function runSeed(
         await progressRepo.save(
           progressRepo.create({
             issueId: issue.id,
-            actorId: demoStaff.id,
+            actorId: actorStaff.id,
             actionType: TimelineAction.ASSIGNED,
             fromStatus: IssueStatus.RECEIVED,
             toStatus: IssueStatus.IN_PROGRESS,
@@ -427,7 +513,7 @@ export async function runSeed(
         const resolveUpdate = await progressRepo.save(
           progressRepo.create({
             issueId: issue.id,
-            actorId: demoStaff.id,
+            actorId: actorStaff.id,
             actionType: TimelineAction.RESOLVED,
             fromStatus: IssueStatus.IN_PROGRESS,
             toStatus: IssueStatus.RESOLVED,
@@ -444,7 +530,7 @@ export async function runSeed(
             mediaRepo.create({
               issueId: issue.id,
               progressUpdateId: resolveUpdate.id,
-              uploadedById: demoStaff.id,
+              uploadedById: actorStaff.id,
               stage: MediaStage.AFTER,
               url: afterImageUrl,
               caption: `Ảnh sau xử lý (${spec.code})`,
@@ -452,15 +538,21 @@ export async function runSeed(
           );
         }
 
-        if (idx % 3 === 0) {
+        if (idx % 3 === 0 || idx % 11 === 0) {
+          const isUnsatisfied = idx % 11 === 0 && idx > 0;
           await feedbackRepo.save(
             feedbackRepo.create({
               issueId: issue.id,
-              citizenId: demoCitizen.id,
-              isSatisfied: true,
-              rating: 5,
-              comment: 'Xử lý nhanh, sạch sẽ và minh bạch.',
-              reviewStatus: FeedbackReviewStatus.ACKNOWLEDGED,
+              citizenId: reporter.id,
+              isSatisfied: !isUnsatisfied,
+              rating: isUnsatisfied ? 2 : idx % 6 === 0 ? 5 : 4,
+              reason: isUnsatisfied ? 'Cần kiểm tra bổ sung sau nghiệm thu' : null,
+              comment: isUnsatisfied
+                ? 'Khu vực xung quanh còn ít vật liệu chưa dọn hết.'
+                : 'Xử lý nhanh, sạch sẽ và minh bạch.',
+              reviewStatus: isUnsatisfied
+                ? FeedbackReviewStatus.SUBMITTED
+                : FeedbackReviewStatus.ACKNOWLEDGED,
             }),
           );
         }

@@ -10,12 +10,12 @@ import type {
 
 export const DEFAULT_SEED_EXCEL_PATH = resolve(
   import.meta.dirname,
-  'data/naisee-seed-data.xlsx',
+  'data/naisee-seed-data-rich.xlsx',
 );
 
 const SRC_FALLBACK_EXCEL_PATH = resolve(
   process.cwd(),
-  'src/core/database/seeds/data/naisee-seed-data.xlsx',
+  'src/core/database/seeds/data/naisee-seed-data-rich.xlsx',
 );
 
 export interface SeedRoleRow {

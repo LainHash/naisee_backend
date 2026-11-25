@@ -23,7 +23,7 @@ describe('seed-excel.helper', () => {
     expect(data.departments).toHaveLength(4);
     expect(data.categories).toHaveLength(5);
 
-    expect(data.users).toHaveLength(6);
+    expect(data.users.length).toBeGreaterThanOrEqual(6);
     expect(data.users[0]?.phone).toBe('0901000001');
     expect(data.users[1]?.departmentCode).toBe('ROAD_MAINTENANCE');
 
@@ -35,7 +35,19 @@ describe('seed-excel.helper', () => {
       data.mediaPresets.every((m) => m.url.startsWith('https://res.cloudinary.com/')),
     ).toBe(true);
 
-    expect(data.issues).toHaveLength(70);
+    expect(data.issues.length).toBeGreaterThanOrEqual(200);
+    expect(
+      new Set(data.issues.map((i) => i.status)),
+    ).toEqual(
+      new Set([
+        IssueStatus.PENDING_REVIEW,
+        IssueStatus.RECEIVED,
+        IssueStatus.VERIFYING,
+        IssueStatus.IN_PROGRESS,
+        IssueStatus.RESOLVED,
+        IssueStatus.REJECTED,
+      ]),
+    );
     expect(data.issues[0]).toMatchObject({
       code: 'HT-2026-001',
       categoryCode: 'ROAD_SURFACE',
