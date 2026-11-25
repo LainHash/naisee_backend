@@ -46,6 +46,13 @@ const CLASSIFICATION_RULES: RuleMatch[] = [
     suggestedPriority: Priority.HIGH,
     confidence: 0.91,
   },
+  {
+    code: 'OTHER',
+    keywords: ['khac', 'khác', 'other', 'cay-do', 'cây đổ', 'su-co-khac'],
+    suggestedTitle: 'Sự cố hạ tầng đô thị khác cần kiểm tra',
+    suggestedPriority: Priority.MEDIUM,
+    confidence: 0.8,
+  },
 ];
 
 interface VisionJsonPayload {

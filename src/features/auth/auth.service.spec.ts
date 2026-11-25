@@ -1,4 +1,8 @@
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { RoleName } from '../../common/enums/domain.enums.js';
 import { AuthService } from './auth.service.js';
@@ -30,10 +34,16 @@ describe('AuthService', () => {
   function createService() {
     const userRepo = {
       findOne: vi.fn(),
+      create: vi.fn((data: Record<string, unknown>) => ({
+        id: 99,
+        publicId: 'user-uuid-99',
+        ...data,
+      })),
       save: vi.fn(),
     };
     const roleRepo = {
       find: vi.fn(),
+      findOne: vi.fn(),
     };
     const jwtService = {
       signAsync: vi.fn().mockResolvedValue('mock-jwt-token'),
@@ -102,5 +112,31 @@ describe('AuthService', () => {
     });
 
     expect(updated.largeTextMode).toBe(true);
+  });
+
+  it('registers a new CITIZEN account and issues JWT token', async () => {
+    const { service, userRepo, roleRepo } = createService();
+    userRepo.findOne.mockResolvedValue(null);
+    roleRepo.findOne.mockResolvedValue(citizenRole);
+    userRepo.save.mockImplementation(async (u: User) => u);
+
+    const result = await service.register({
+      fullName: 'Nguyễn Văn A',
+      phone: '+84 912 345 678',
+    });
+
+    expect(result.accessToken).toBe('mock-jwt-token');
+    expect(result.user.phone).toBe('0912345678');
+    expect(result.user.fullName).toBe('Nguyễn Văn A');
+    expect(result.user.role).toBe(RoleName.CITIZEN);
+  });
+
+  it('throws ConflictException when registering an existing phone', async () => {
+    const { service, userRepo } = createService();
+    userRepo.findOne.mockResolvedValue(citizenUser);
+
+    await expect(
+      service.register({ phone: '0901000001' }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });

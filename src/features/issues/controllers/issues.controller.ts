@@ -21,7 +21,10 @@ import {
   QueryMapPointsDto,
   QueryMyIssuesDto,
 } from '../dto/query-issues.dto.js';
-import { SupplementIssueDto } from '../dto/staff-issues.dto.js';
+import {
+  AddIssueEvidenceDto,
+  SupplementIssueDto,
+} from '../dto/staff-issues.dto.js';
 import { IssuesService } from '../services/issues.service.js';
 
 @ApiTags('issues')
@@ -130,6 +133,26 @@ export class IssuesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SupplementIssueDto,
   ): Promise<PublicIssueDetailDto> {
-    return this.issuesService.supplementIssue(publicId, user, dto.content);
+    return this.issuesService.supplementIssue(
+      publicId,
+      user,
+      dto.content,
+      dto.imageUrls,
+    );
+  }
+
+  @ApiBearerAuth()
+  @Roles(RoleName.CITIZEN, RoleName.VOLUNTEER)
+  @Post(':publicId/evidence')
+  @ApiOperation({
+    summary:
+      'Người dân bổ sung ảnh hiện trường vào hồ sơ đang mở',
+  })
+  addEvidence(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: AddIssueEvidenceDto,
+  ): Promise<PublicIssueDetailDto> {
+    return this.issuesService.addEvidence(publicId, user, dto);
   }
 }

@@ -8,6 +8,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
@@ -214,6 +215,48 @@ export class SupplementIssueDto {
   @IsNotEmpty({ message: 'Vui lòng nhập nội dung bổ sung' })
   @MaxLength(1500)
   content: string;
+
+  /** Ảnh hiện trường bổ sung (tùy chọn) */
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  imageUrls?: string[];
+}
+
+export class AddIssueEvidenceDto {
+  /** Danh sách URL ảnh hiện trường bổ sung */
+  @IsArray()
+  @ArrayMinSize(1, { message: 'Vui lòng đính kèm ít nhất 1 ảnh hiện trường' })
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  imageUrls: string[];
+
+  /** Ghi chú thêm về hiện trường */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  note?: string;
+
+  /** Vĩ độ tại thời điểm bổ sung ảnh */
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number;
+
+  /** Kinh độ tại thời điểm bổ sung ảnh */
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number;
+
+  /** Địa chỉ tại điểm bổ sung */
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  addressText?: string;
 }
 
 export class UpdateIssueProgressDto {

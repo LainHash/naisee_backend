@@ -496,4 +496,37 @@ describe('IssuesService (public & citizen flows)', () => {
       { minLng: 106.8, maxLng: 106.9, minLat: 10.9, maxLat: 11 },
     );
   });
+
+  it('adds additional evidence photos on an open issue and rejects resolved issues', async () => {
+    const mutableIssue = Object.assign(Object.create(null), baseIssue, {
+      status: IssueStatus.IN_PROGRESS,
+      stage: WorkflowStage.WORK_ACCEPTED,
+    }) as Issue;
+    const { service, txMediaRepo, txProgressRepo } = createService([mutableIssue]);
+
+    await service.addEvidence('HT-2026-001', citizenUser, {
+      imageUrls: ['https://res.cloudinary.com/demo/image/upload/extra.jpg'],
+      note: 'Ảnh chụp góc gần hơn',
+    });
+
+    expect(txMediaRepo.save).toHaveBeenCalledWith([
+      expect.objectContaining({
+        issueId: 1,
+        stage: MediaStage.BEFORE,
+        url: 'https://res.cloudinary.com/demo/image/upload/extra.jpg',
+      }),
+    ]);
+    expect(txProgressRepo.save).toHaveBeenCalled();
+
+    const closedIssue = Object.assign(Object.create(null), baseIssue, {
+      status: IssueStatus.RESOLVED,
+      stage: WorkflowStage.COMPLETED,
+    }) as Issue;
+    const closed = createService([closedIssue]);
+    await expect(
+      closed.service.addEvidence('HT-2026-001', citizenUser, {
+        imageUrls: ['https://res.cloudinary.com/demo/image/upload/extra.jpg'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
 });
