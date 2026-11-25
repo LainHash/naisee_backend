@@ -75,5 +75,44 @@ export class WardBoundaryService {
       return areaA - areaB;
     })[0];
   }
+
+  /**
+   * Finds an active Ward/Commune by publicId (UUID), code, or normalized Vietnamese name.
+   */
+  async findActiveWard(params: {
+    wardPublicId?: string;
+    wardName?: string;
+  }): Promise<Ward | null> {
+    const wards = await this.getActiveWards();
+
+    if (params.wardPublicId?.trim()) {
+      const targetId = params.wardPublicId.trim().toLowerCase();
+      const byId = wards.find((w) => w.publicId.toLowerCase() === targetId);
+      if (byId) return byId;
+    }
+
+    if (params.wardName?.trim()) {
+      const target = params.wardName.trim().toLowerCase();
+      const exact = wards.find(
+        (w) =>
+          w.name.trim().toLowerCase() === target ||
+          w.code.trim().toLowerCase() === target,
+      );
+      if (exact) return exact;
+
+      const withoutPrefixMatches = wards.filter((w) => {
+        const stripped = w.name
+          .trim()
+          .toLowerCase()
+          .replace(/^(phường|xã|thị trấn)\s+/, '');
+        return stripped === target;
+      });
+      if (withoutPrefixMatches.length === 1) {
+        return withoutPrefixMatches[0];
+      }
+    }
+
+    return null;
+  }
 }
 

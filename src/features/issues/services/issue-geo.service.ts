@@ -6,6 +6,13 @@ function toRadians(deg: number): number {
   return (deg * Math.PI) / 180;
 }
 
+export interface GeoBoundingBox {
+  minLat: number;
+  maxLat: number;
+  minLng: number;
+  maxLng: number;
+}
+
 @Injectable()
 export class IssueGeoService {
   /**
@@ -28,6 +35,28 @@ export class IssueGeoService {
 
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return Math.round(EARTH_RADIUS_METERS * c);
+  }
+
+  /**
+   * Computes a lat/lng bounding box enclosing a circle of radiusMeters (with small safety margin)
+   * so SQL queries can pre-filter candidates before exact Haversine checks.
+   */
+  calculateBoundingBox(
+    lat: number,
+    lng: number,
+    radiusMeters: number,
+  ): GeoBoundingBox {
+    const safeRadius = Math.max(0, radiusMeters) * 1.02 + 10;
+    const dLat = (safeRadius / EARTH_RADIUS_METERS) * (180 / Math.PI);
+    const cosLat = Math.max(0.01, Math.cos(toRadians(lat)));
+    const dLng = (safeRadius / (EARTH_RADIUS_METERS * cosLat)) * (180 / Math.PI);
+
+    return {
+      minLat: Math.max(-90, lat - dLat),
+      maxLat: Math.min(90, lat + dLat),
+      minLng: Math.max(-180, lng - dLng),
+      maxLng: Math.min(180, lng + dLng),
+    };
   }
 }
 

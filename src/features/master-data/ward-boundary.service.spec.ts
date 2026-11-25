@@ -76,5 +76,22 @@ describe('WardBoundaryService', () => {
     expect(outside).toBeNull();
     expect(wardRepo.find).toHaveBeenCalledTimes(1);
   });
+
+  it('finds active ward by publicId, code, or normalized name', async () => {
+    const wardRepo = {
+      find: vi.fn().mockResolvedValue([tranBienWard, longKhanhWard]),
+    };
+    const service = new WardBoundaryService(wardRepo as never);
+
+    expect(
+      (await service.findActiveWard({ wardPublicId: 'ward-uuid-2' }))?.name,
+    ).toBe('Phường Long Khánh');
+    expect(
+      (await service.findActiveWard({ wardName: 'Trấn Biên' }))?.code,
+    ).toBe('DN-TRAN-BIEN');
+    expect(
+      await service.findActiveWard({ wardName: 'Không tồn tại' }),
+    ).toBeNull();
+  });
 });
 

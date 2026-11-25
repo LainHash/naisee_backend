@@ -750,6 +750,11 @@ export async function runSeed(
       }
     }
 
+    await manager.query('CREATE SEQUENCE IF NOT EXISTS issue_code_seq');
+    await manager.query(
+      "SELECT setval('issue_code_seq', GREATEST(COALESCE((SELECT MAX(id) FROM issues), 0), 1), true)",
+    );
+
     return {
       skipped: false,
       wards: await wardRepo.count(),

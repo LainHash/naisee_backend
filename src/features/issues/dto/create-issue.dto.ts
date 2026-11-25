@@ -53,7 +53,12 @@ export class CreateIssueDto {
   @MaxLength(500)
   addressText: string;
 
-  /** Phường/xã (mặc định Phường Trấn Biên) */
+  /** publicId (UUID) của phường/xã (tùy chọn — hệ thống tự nhận diện theo tọa độ nếu bỏ trống) */
+  @IsOptional()
+  @IsUUID()
+  wardPublicId?: string;
+
+  /** Tên phường/xã (tùy chọn — hệ thống ưu tiên tự nhận diện theo tọa độ trong ranh giới tỉnh Đồng Nai) */
   @IsOptional()
   @IsString()
   @MaxLength(128)
