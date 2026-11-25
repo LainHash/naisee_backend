@@ -6,6 +6,7 @@ import { Issue } from '../../../features/issues/entities/issue.entity.js';
 import { Ward } from '../../../features/master-data/entities/ward.entity.js';
 import {
   FALLBACK_TRAN_BIEN_WARD,
+  isPointInPolygonGeometry,
   parseWardsFromGeoJson,
   type ParsedWardSeed,
 } from '../../../features/master-data/ward-geojson.utils.js';
@@ -152,9 +153,29 @@ export async function upsertWardsAndBackfill(
     .getMany();
   let backfilledIssues = 0;
   for (const issue of issuesWithoutWardId) {
-    const matchedId = wardIdByName.get(issue.ward.trim().toLowerCase());
-    if (matchedId) {
-      await issueRepo.update({ id: issue.id }, { wardId: matchedId });
+    let matchedWard = allWards.find(
+      (w) => w.name.trim().toLowerCase() === issue.ward.trim().toLowerCase(),
+    );
+    if (!matchedWard && Number.isFinite(issue.latitude) && Number.isFinite(issue.longitude)) {
+      matchedWard = allWards.find(
+        (w) =>
+          w.boundaryGeoJson &&
+          issue.latitude >= w.minLat &&
+          issue.latitude <= w.maxLat &&
+          issue.longitude >= w.minLng &&
+          issue.longitude <= w.maxLng &&
+          isPointInPolygonGeometry(
+            issue.latitude,
+            issue.longitude,
+            w.boundaryGeoJson,
+          ),
+      );
+    }
+    if (matchedWard) {
+      await issueRepo.update(
+        { id: issue.id },
+        { wardId: matchedWard.id, ward: matchedWard.name },
+      );
       backfilledIssues += 1;
     }
   }

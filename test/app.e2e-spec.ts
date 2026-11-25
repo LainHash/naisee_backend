@@ -149,6 +149,14 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.success).toBe(false);
   });
 
+  it('/api/v1/wards/resolve validates query coordinates with 400', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/wards/resolve')
+      .expect(400);
+
+    expect(res.body.success).toBe(false);
+  });
+
   it('/api/v1/issues/nearby validates missing lat/lng with 400', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/issues/nearby')
@@ -316,6 +324,8 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
 
     expect(res.body.info?.title).toBe('NaiSee API');
     expect(res.body.paths?.['/api/v1/categories']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/wards']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/wards/resolve']).toBeDefined();
     expect(res.body.paths?.['/api/v1/media/upload']).toBeDefined();
     expect(res.body.paths?.['/api/v1/ai/classify-image']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/nearby']).toBeDefined();

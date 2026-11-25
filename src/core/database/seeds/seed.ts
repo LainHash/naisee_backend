@@ -42,6 +42,7 @@ interface IssueSeedSpec {
   title: string;
   description: string;
   addressText: string;
+  ward?: string;
   lat: number;
   lng: number;
   status: IssueStatus;
@@ -250,6 +251,204 @@ function buildIssueSpecs(): IssueSeedSpec[] {
     reportCount: 1,
   });
 
+  // Multi-ward Dong Nai distribution across 14 additional wards
+  const multiWardSpecs: Array<{
+    ward: string;
+    categoryCode: IssueSeedSpec['categoryCode'];
+    title: string;
+    description: string;
+    addressText: string;
+    lat: number;
+    lng: number;
+    status: IssueStatus;
+    priority: Priority;
+    reportCount: number;
+    resolvedDaysAgo?: number;
+  }> = [
+    {
+      ward: 'Phường Biên Hòa',
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Mặt đường Nguyễn Ái Quốc đoạn Hóa An xuống cấp',
+      description: 'Xuất hiện nhiều ổ gà lớn sau mùa mưa gây ùn tắc giờ cao điểm.',
+      addressText: 'Đường Nguyễn Ái Quốc, khu vực Hóa An, Phường Biên Hòa',
+      lat: 10.935,
+      lng: 106.798,
+      status: IssueStatus.IN_PROGRESS,
+      priority: Priority.HIGH,
+      reportCount: 3,
+    },
+    {
+      ward: 'Phường Tam Hiệp',
+      categoryCode: 'FLOODING',
+      title: 'Ngập cục bộ ngã tư đường Đồng Khởi – Phạm Văn Thuận',
+      description: 'Nước thoát chậm sau mưa lớn gây ngập nửa bánh xe.',
+      addressText: 'Ngã tư Đồng Khởi – Phạm Văn Thuận, Phường Tam Hiệp',
+      lat: 10.95,
+      lng: 106.865,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.HIGH,
+      reportCount: 2,
+      resolvedDaysAgo: 2,
+    },
+    {
+      ward: 'Phường Long Bình',
+      categoryCode: 'WASTE',
+      title: 'Điểm tập kết rác tự phát gần khu công nghiệp',
+      description: 'Rác sinh hoạt và bao bì tồn đọng ven lề đường.',
+      addressText: 'Đường Bùi Văn Hòa, Phường Long Bình',
+      lat: 10.952,
+      lng: 106.895,
+      status: IssueStatus.IN_PROGRESS,
+      priority: Priority.MEDIUM,
+      reportCount: 2,
+    },
+    {
+      ward: 'Phường Trảng Dài',
+      categoryCode: 'STREET_LIGHT',
+      title: 'Tuyến đèn chiếu sáng đường Nguyễn Khuyến mất điện',
+      description: 'Khoảng 8 trụ đèn liên tiếp không sáng từ 18h30.',
+      addressText: 'Đường Nguyễn Khuyến, Phường Trảng Dài',
+      lat: 10.99,
+      lng: 106.865,
+      status: IssueStatus.VERIFYING,
+      priority: Priority.HIGH,
+      reportCount: 1,
+    },
+    {
+      ward: 'Phường Hố Nai',
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Nắp cống gãy chắn ngang lề đường Quốc lộ 1A',
+      description: 'Cần thay mới nắp bê tông bảo đảm an toàn cho xe máy.',
+      addressText: 'Quốc lộ 1A đoạn Tân Hòa, Phường Hố Nai',
+      lat: 10.965,
+      lng: 106.932,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.HIGH,
+      reportCount: 1,
+      resolvedDaysAgo: 3,
+    },
+    {
+      ward: 'Phường Long Hưng',
+      categoryCode: 'FLOODING',
+      title: 'Triều cường kết hợp mưa gây ngập tuyến nhánh Long Bình Tân',
+      description: 'Nước tràn mặt đường khoảng 20cm vào buổi chiều.',
+      addressText: 'Ngã ba Long Bình Tân, Phường Long Hưng',
+      lat: 10.902,
+      lng: 106.855,
+      status: IssueStatus.IN_PROGRESS,
+      priority: Priority.HIGH,
+      reportCount: 2,
+    },
+    {
+      ward: 'Phường Tân Triều',
+      categoryCode: 'STREET_LIGHT',
+      title: 'Đèn đường khu vực bến đò Tân Triều chập chờn',
+      description: 'Đèn nhấp nháy liên tục gây khó quan sát ban đêm.',
+      addressText: 'Đường Hương lộ 9, Phường Tân Triều',
+      lat: 10.985,
+      lng: 106.825,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.MEDIUM,
+      reportCount: 1,
+      resolvedDaysAgo: 4,
+    },
+    {
+      ward: 'Phường Phước Tân',
+      categoryCode: 'WASTE',
+      title: 'Rác thải công nghiệp nhẹ đổ trộm ven đường tránh',
+      description: 'Cần thu gom và cắm biển cảnh báo khu vực.',
+      addressText: 'Đường Võ Nguyên Giáp, Phường Phước Tân',
+      lat: 10.9,
+      lng: 106.935,
+      status: IssueStatus.PENDING_REVIEW,
+      priority: Priority.MEDIUM,
+      reportCount: 1,
+    },
+    {
+      ward: 'Phường Tam Phước',
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Lún mặt đường trước cổng khu dân cư Tam Phước',
+      description: 'Xe tải trọng lớn làm lún vệt bánh xe dài 10m.',
+      addressText: 'Quốc lộ 51, Phường Tam Phước',
+      lat: 10.85,
+      lng: 106.91,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.MEDIUM,
+      reportCount: 1,
+      resolvedDaysAgo: 5,
+    },
+    {
+      ward: 'Phường Long Khánh',
+      categoryCode: 'STREET_LIGHT',
+      title: 'Cụm đèn quảng trường công viên Long Khánh tắt bóng',
+      description: 'Hai trụ đèn chính bị hỏng bộ nguồn.',
+      addressText: 'Đường Hùng Vương, Phường Long Khánh',
+      lat: 10.94,
+      lng: 107.235,
+      status: IssueStatus.IN_PROGRESS,
+      priority: Priority.MEDIUM,
+      reportCount: 2,
+    },
+    {
+      ward: 'Phường Bảo Vinh',
+      categoryCode: 'FLOODING',
+      title: 'Rãnh thoát nước bị đất đá bồi lấp sau mưa',
+      description: 'Cần nạo vét trước đợt mưa cuối tuần.',
+      addressText: 'Đường Lê A, Phường Bảo Vinh',
+      lat: 10.955,
+      lng: 107.275,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.HIGH,
+      reportCount: 1,
+      resolvedDaysAgo: 1,
+    },
+    {
+      ward: 'Phường Chơn Thành',
+      categoryCode: 'ROAD_SURFACE',
+      title: 'Ổ gà tại vòng xoay trung tâm Chơn Thành',
+      description: 'Mặt nhựa bong tróc cạnh vạch kẻ đường.',
+      addressText: 'Quốc lộ 13, Phường Chơn Thành',
+      lat: 11.455,
+      lng: 106.605,
+      status: IssueStatus.RESOLVED,
+      priority: Priority.HIGH,
+      reportCount: 1,
+      resolvedDaysAgo: 3,
+    },
+    {
+      ward: 'Phường Đồng Xoài',
+      categoryCode: 'WASTE',
+      title: 'Thùng rác công cộng khu vực chợ Đồng Xoài quá tải',
+      description: 'Cần tăng tần suất thu gom vào cuối ngày.',
+      addressText: 'Đường Phú Riềng Đỏ, Phường Đồng Xoài',
+      lat: 11.518,
+      lng: 106.835,
+      status: IssueStatus.IN_PROGRESS,
+      priority: Priority.MEDIUM,
+      reportCount: 3,
+    },
+    {
+      ward: 'Phường Phước Long',
+      categoryCode: 'STREET_LIGHT',
+      title: 'Đèn chiếu sáng tuyến dốc khu vực trung tâm Phước Long hỏng',
+      description: 'Đoạn đường dốc thiếu ánh sáng vào buổi tối.',
+      addressText: 'Đường ĐT 741, Phường Phước Long',
+      lat: 11.825,
+      lng: 107.0,
+      status: IssueStatus.RECEIVED,
+      priority: Priority.HIGH,
+      reportCount: 1,
+    },
+  ];
+
+  for (const item of multiWardSpecs) {
+    specs.push({
+      code: makeCode(),
+      ...item,
+      resolutionDurationDays: item.status === IssueStatus.RESOLVED ? 2.8 : undefined,
+    });
+  }
+
   return specs;
 }
 
@@ -281,9 +480,13 @@ export async function runSeed(
     const feedbackRepo = manager.getRepository(Feedback);
 
     await upsertWardsAndBackfill(manager);
-    const tranBienWard = await wardRepo.findOne({
-      where: { name: 'Phường Trấn Biên' },
-    });
+    const allWards = await wardRepo.find();
+    const wardIdByName = new Map(
+      allWards.map((w) => [w.name.trim().toLowerCase(), w.id]),
+    );
+    const tranBienWard = allWards.find(
+      (w) => w.name.trim().toLowerCase() === 'phường trấn biên',
+    );
 
     const existingDemoIssue = await issueRepo.findOne({
       where: { code: 'HT-2026-001' },
@@ -403,6 +606,7 @@ export async function runSeed(
     const citizenRole = roleMap.get(RoleName.CITIZEN)!;
     const staffRole = roleMap.get(RoleName.STAFF)!;
     const volunteerRole = roleMap.get(RoleName.VOLUNTEER)!;
+    const adminRole = roleMap.get(RoleName.ADMIN)!;
 
     const users = await userRepo.save([
       userRepo.create({
@@ -416,7 +620,7 @@ export async function runSeed(
       userRepo.create({
         roleId: staffRole.id,
         departmentId: deptMap.get('ROAD_MAINTENANCE')!.id,
-        fullName: 'Chị Lan – Cán bộ UBND Phường Trấn Biên',
+        fullName: 'Chị Lan – Cán bộ UBND Đồng Nai',
         phone: '0901000002',
         ward: 'Phường Trấn Biên',
         wardId: tranBienWard?.id ?? null,
@@ -430,15 +634,22 @@ export async function runSeed(
       }),
       userRepo.create({
         roleId: citizenRole.id,
-        fullName: 'Anh Tuấn – Cư dân KP2',
+        fullName: 'Anh Tuấn – Cư dân Biên Hòa',
         phone: '0901000004',
-        ward: 'Phường Trấn Biên',
-        wardId: tranBienWard?.id ?? null,
+        ward: 'Phường Biên Hòa',
+        wardId: wardIdByName.get('phường biên hòa') ?? null,
       }),
       userRepo.create({
         roleId: citizenRole.id,
-        fullName: 'Chị Hoa – Cư dân KP3',
+        fullName: 'Chị Hoa – Cư dân Long Khánh',
         phone: '0901000005',
+        ward: 'Phường Long Khánh',
+        wardId: wardIdByName.get('phường long khánh') ?? null,
+      }),
+      userRepo.create({
+        roleId: adminRole.id,
+        fullName: 'Quản trị viên Cổng Tỉnh Đồng Nai',
+        phone: '0901000099',
         ward: 'Phường Trấn Biên',
         wardId: tranBienWard?.id ?? null,
       }),
@@ -519,6 +730,12 @@ export async function runSeed(
         spec.status === IssueStatus.IN_PROGRESS ||
         spec.status === IssueStatus.RESOLVED;
 
+          const targetWardName = spec.ward ?? 'Phường Trấn Biên';
+          const targetWardId =
+            wardIdByName.get(targetWardName.trim().toLowerCase()) ??
+            tranBienWard?.id ??
+            null;
+
       const issue = await issueRepo.save(
         issueRepo.create({
           code: spec.code,
@@ -536,8 +753,8 @@ export async function runSeed(
           latitude: spec.lat,
           longitude: spec.lng,
           addressText: spec.addressText,
-          ward: 'Phường Trấn Biên',
-          wardId: tranBienWard?.id ?? null,
+          ward: targetWardName,
+          wardId: targetWardId,
           thumbnailUrl: beforeImageUrl,
           reportCount: spec.reportCount,
           createdById: reporter.id,
