@@ -178,11 +178,11 @@ export class VerificationsService {
       );
     }
 
-    qb.orderBy(
+    qb.addSelect(
       `CASE v.status WHEN 'IN_PROGRESS' THEN 1 WHEN 'OPEN' THEN 2 WHEN 'COMPLETED' THEN 3 ELSE 4 END`,
-      'ASC',
+      'verification_status_rank',
     )
-      .addOrderBy('v.dueAt', 'ASC', 'NULLS LAST')
+      .orderBy('verification_status_rank', 'ASC')
       .addOrderBy('v.createdAt', 'DESC')
       .skip((page - 1) * limit)
       .take(limit);
