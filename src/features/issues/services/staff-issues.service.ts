@@ -67,7 +67,8 @@ export class StaffIssuesService {
     const qb = this.issueRepo
       .createQueryBuilder('issue')
       .innerJoinAndSelect('issue.category', 'category')
-      .leftJoinAndSelect('issue.assignedDepartment', 'department');
+      .leftJoinAndSelect('issue.assignedDepartment', 'department')
+      .leftJoinAndSelect('issue.wardUnit', 'wardUnit');
 
     if (!query.includeDuplicates) {
       qb.andWhere('issue.isDuplicate = :isDuplicate', { isDuplicate: false });
@@ -117,6 +118,16 @@ export class StaffIssuesService {
     if (query.needsReopenReview) {
       qb.andWhere('issue.needsReopenReview = :needsReopenReview', {
         needsReopenReview: true,
+      });
+    }
+    if (query.wardPublicId) {
+      qb.andWhere('wardUnit.publicId = :wardPublicId', {
+        wardPublicId: query.wardPublicId,
+      });
+    }
+    if (query.ward?.trim()) {
+      qb.andWhere('LOWER(issue.ward) LIKE :ward', {
+        ward: `%${query.ward.trim().toLowerCase()}%`,
       });
     }
 
