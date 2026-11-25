@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   AdministrativeUnitType,
   Priority,
@@ -37,8 +38,21 @@ export class WardDto {
   centerLat: number;
   centerLng: number;
   defaultZoom: number;
+
+  @ApiProperty({
+    type: [Number],
+    description: 'Bounding box [minLng, minLat, maxLng, maxLat]',
+    example: [106.812, 10.93, 106.85, 10.968],
+  })
   bbox: [number, number, number, number];
+
   isActive: boolean;
+
+  @ApiPropertyOptional({
+    type: Object,
+    nullable: true,
+    description: 'GeoJSON Polygon hoặc MultiPolygon ranh giới phường/xã',
+  })
   boundaryGeoJson?: GeoJsonPolygonGeometry | null;
 }
 
