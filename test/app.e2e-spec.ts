@@ -317,12 +317,89 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
       .expect(400);
   });
 
+  it('validates DTOs and RBAC for register, issue evidence, and staff volunteers endpoints', async () => {
+    const citizenToken = await jwtService.signAsync({
+      sub: 1,
+      publicId: 'uuid-citizen',
+      role: RoleName.CITIZEN,
+      fullName: 'Cô/Chú Minh',
+      phone: '0901000001',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+    const staffToken = await jwtService.signAsync({
+      sub: 2,
+      publicId: 'uuid-staff',
+      role: RoleName.STAFF,
+      fullName: 'Chị Lan',
+      phone: '0901000002',
+      ward: 'Phường Trấn Biên',
+      departmentId: 1,
+    });
+    const volunteerToken = await jwtService.signAsync({
+      sub: 3,
+      publicId: 'uuid-volunteer',
+      role: RoleName.VOLUNTEER,
+      fullName: 'Bạn Hùng',
+      phone: '0901000003',
+      ward: 'Phường Trấn Biên',
+      departmentId: null,
+    });
+
+    // POST /auth/register validates invalid phone DTO -> 400
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({ phone: 'abc', fullName: 'Nguyễn Văn A' })
+      .expect(400);
+
+    // POST /issues/:publicId/evidence -> 401 without token, 403 for STAFF, 400 on empty imageUrls for CITIZEN
+    await request(app.getHttpServer())
+      .post('/api/v1/issues/HT-2026-001/evidence')
+      .send({ imageUrls: ['https://example.com/e1.jpg'] })
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/issues/HT-2026-001/evidence')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({ imageUrls: ['https://example.com/e1.jpg'] })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/issues/HT-2026-001/evidence')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .send({ imageUrls: [] })
+      .expect(400);
+
+    // GET & PATCH /staff/volunteers -> 401 without token, 403 for CITIZEN/VOLUNTEER, 400 invalid DTO for STAFF
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/volunteers')
+      .expect(401);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/staff/volunteers')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/volunteers/uuid-volunteer/status')
+      .set('Authorization', `Bearer ${volunteerToken}`)
+      .send({ isActive: false })
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .patch('/api/v1/staff/volunteers/uuid-volunteer/status')
+      .set('Authorization', `Bearer ${staffToken}`)
+      .send({})
+      .expect(400);
+  });
+
   it('/docs/openapi.json (GET)', async () => {
     const res = await request(app.getHttpServer())
       .get('/docs/openapi.json')
       .expect(200);
 
     expect(res.body.info?.title).toBe('NaiSee API');
+    expect(res.body.paths?.['/api/v1/auth/register']).toBeDefined();
     expect(res.body.paths?.['/api/v1/categories']).toBeDefined();
     expect(res.body.paths?.['/api/v1/wards']).toBeDefined();
     expect(res.body.paths?.['/api/v1/wards/resolve']).toBeDefined();
@@ -333,6 +410,7 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.paths?.['/api/v1/issues']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}']).toBeDefined();
     expect(res.body.paths?.['/api/v1/issues/{publicId}/me-too']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/issues/{publicId}/evidence']).toBeDefined();
     expect(res.body.paths?.['/api/v1/staff/issues']).toBeDefined();
     expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/triage']).toBeDefined();
     expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/reject']).toBeDefined();
@@ -341,6 +419,8 @@ describe('AppController, Auth RBAC & Media Upload (e2e)', () => {
     expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/progress']).toBeDefined();
     expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/resolve']).toBeDefined();
     expect(res.body.paths?.['/api/v1/staff/issues/{publicId}/verifications']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/volunteers']).toBeDefined();
+    expect(res.body.paths?.['/api/v1/staff/volunteers/{publicId}/status']).toBeDefined();
     expect(res.body.paths?.['/api/v1/volunteer/verifications']).toBeDefined();
     expect(res.body.paths?.['/api/v1/volunteer/verifications/{publicId}/claim']).toBeDefined();
     expect(res.body.paths?.['/api/v1/volunteer/verifications/{publicId}/submit']).toBeDefined();
