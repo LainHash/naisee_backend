@@ -55,6 +55,45 @@ interface IssueSeedSpec {
 
 const DEMO_ANCHOR_DATE = new Date('2026-11-24T12:00:00.000Z');
 
+const SEED_BEFORE_MEDIA_POOL: Record<IssueSeedSpec['categoryCode'], string[]> = {
+  ROAD_SURFACE: [
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617669/naisee/before/seed-road_surface-pothole.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617673/naisee/before/seed-road_surface-cracks.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617674/naisee/before/seed-road_surface-sidewalk.jpg',
+  ],
+  WASTE: [
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617670/naisee/before/seed-waste-bin.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617670/naisee/before/seed-waste-roadside.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617674/naisee/before/seed-waste-alley.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617675/naisee/before/seed-waste-bags.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617676/naisee/before/seed-waste-overflow.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617677/naisee/before/seed-waste-dump.jpg',
+  ],
+  FLOODING: [
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617671/naisee/before/seed-flooding-main.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617677/naisee/before/seed-flooding-drain.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617678/naisee/before/seed-flooding-street.jpg',
+  ],
+  STREET_LIGHT: [
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617679/naisee/before/seed-street_light-dark.jpg',
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617679/naisee/before/seed-street_light-pole.jpg',
+  ],
+};
+
+const SEED_AFTER_MEDIA_BY_CATEGORY: Record<IssueSeedSpec['categoryCode'], string> = {
+  ROAD_SURFACE:
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617680/naisee/after/seed-road_surface-after.jpg',
+  WASTE:
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617681/naisee/after/seed-waste-after.jpg',
+  FLOODING:
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617682/naisee/after/seed-flooding-after.jpg',
+  STREET_LIGHT:
+    'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617682/naisee/after/seed-street_light-after.jpg',
+};
+
+const SEED_VERIFY_MEDIA_URL =
+  'https://res.cloudinary.com/dbiu6tmkw/image/upload/v1795617684/naisee/verification/seed-road_surface-verify.jpg';
+
 function daysBefore(base: Date, days: number): Date {
   return new Date(base.getTime() - days * 24 * 60 * 60 * 1000);
 }
@@ -706,8 +745,9 @@ export async function runSeed(
           : new Date(DEMO_ANCHOR_DATE.getTime() + 2 * 24 * 60 * 60 * 1000);
       }
 
-      const beforeImageUrl = `/seed-media/${spec.categoryCode.toLowerCase()}-before.svg`;
-      const afterImageUrl = `/seed-media/${spec.categoryCode.toLowerCase()}-after.svg`;
+      const beforePool = SEED_BEFORE_MEDIA_POOL[spec.categoryCode];
+      const beforeImageUrl = beforePool[idx % beforePool.length];
+      const afterImageUrl = SEED_AFTER_MEDIA_BY_CATEGORY[spec.categoryCode];
       const resolutionNote =
         spec.status === IssueStatus.RESOLVED
           ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
@@ -960,7 +1000,7 @@ export async function runSeed(
             verificationId: verification.id,
             uploadedById: demoVolunteer.id,
             stage: MediaStage.VERIFICATION,
-            url: '/seed-media/road_surface-verify.svg',
+            url: SEED_VERIFY_MEDIA_URL,
             caption: 'Ảnh thanh niên xác minh thực địa HT-2026-001',
           }),
         );
