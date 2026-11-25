@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MasterDataModule } from '../../master-data/master-data.module.js';
+import { MasterDataModule } from '../master-data/master-data.module.js';
 import { IssuesController } from './controllers/issues.controller.js';
 import { Issue } from './entities/issue.entity.js';
 import { ProgressUpdate } from './entities/progress-update.entity.js';

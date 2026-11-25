@@ -51,3 +51,4 @@ export class IssuesController {
     return this.issuesService.findPublicDetail(publicId);
   }
 }
+

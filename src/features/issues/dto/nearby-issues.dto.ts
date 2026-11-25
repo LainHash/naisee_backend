@@ -52,3 +52,4 @@ export class NearbyIssuesQueryDto {
   @Max(100)
   limit: number = 30;
 }
+

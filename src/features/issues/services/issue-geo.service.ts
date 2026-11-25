@@ -30,3 +30,4 @@ export class IssueGeoService {
     return Math.round(EARTH_RADIUS_METERS * c);
   }
 }
+

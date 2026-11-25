@@ -177,3 +177,4 @@ describe('IssuesService (public queries)', () => {
     );
   });
 });
+

@@ -19,3 +19,4 @@ describe('IssueGeoService', () => {
     expect(distance).toBeLessThan(125);
   });
 });
+

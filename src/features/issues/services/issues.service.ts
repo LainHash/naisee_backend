@@ -65,15 +65,16 @@ export class IssuesService {
     const now = new Date();
 
     return candidates
-      .map((issue) => ({
-        ...this.toPublicSummary(issue, now),
-        distanceMeters: this.geoService.calculateDistanceMeters(
-          query.lat,
-          query.lng,
-          issue.latitude,
-          issue.longitude,
-        ),
-      }))
+      .map((issue) =>
+        Object.assign(this.toPublicSummary(issue, now), {
+          distanceMeters: this.geoService.calculateDistanceMeters(
+            query.lat,
+            query.lng,
+            issue.latitude,
+            issue.longitude,
+          ),
+        }),
+      )
       .filter((item) => item.distanceMeters <= query.radiusMeters)
       .sort((a, b) => a.distanceMeters - b.distanceMeters)
       .slice(0, query.limit);
@@ -206,8 +207,7 @@ export class IssuesService {
 
     const feedbackSummary = this.buildFeedbackSummary(issue);
 
-    return {
-      ...summary,
+    return Object.assign(summary, {
       resolutionNote: issue.resolutionNote,
       rejectionReason: issue.rejectionReason,
       aiSuggestedCategoryCode,
@@ -215,7 +215,7 @@ export class IssuesService {
       media,
       timeline,
       feedbackSummary,
-    };
+    });
   }
 
   computeIsOverdue(issue: Issue, now = new Date()): boolean {

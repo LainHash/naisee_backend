@@ -28,3 +28,4 @@ export class QueryIssuesDto extends PaginationQueryDto {
   @IsString()
   search?: string;
 }
+

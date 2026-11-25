@@ -94,3 +94,4 @@ export class PublicIssueDetailDto extends PublicIssueSummaryDto {
   timeline: IssueTimelineItemDto[];
   feedbackSummary: FeedbackSummaryDto;
 }
+
