@@ -55,3 +55,15 @@ export class VerificationTaskDto {
   updatedAt: Date;
 }
 
+export class StaffVolunteerDto {
+  publicId: string;
+  fullName: string;
+  phone: string;
+  ward: string;
+  isActive: boolean;
+  totalVerified: number;
+  activeClaims: number;
+  reliabilityScore: number;
+  joinedAt: Date;
+}
+
