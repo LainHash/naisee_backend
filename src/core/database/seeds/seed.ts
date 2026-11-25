@@ -197,7 +197,8 @@ export async function runSeed(
 
     // Index fallback media presets from Excel sheet `media_presets`
     const beforePoolByCat = new Map<string, string[]>();
-    const afterByCat = new Map<string, string>();
+    const afterPoolByCat = new Map<string, string[]>();
+    const verifyByCat = new Map<string, string>();
     let verifyMediaUrl = '';
     for (const preset of workbookData.mediaPresets) {
       if (preset.stage === MediaStage.BEFORE) {
@@ -205,9 +206,14 @@ export async function runSeed(
         list.push(preset.url);
         beforePoolByCat.set(preset.categoryCode, list);
       } else if (preset.stage === MediaStage.AFTER) {
-        afterByCat.set(preset.categoryCode, preset.url);
+        const list = afterPoolByCat.get(preset.categoryCode) ?? [];
+        list.push(preset.url);
+        afterPoolByCat.set(preset.categoryCode, list);
       } else if (preset.stage === MediaStage.VERIFICATION) {
-        verifyMediaUrl = preset.url;
+        verifyByCat.set(preset.categoryCode, preset.url);
+        if (!verifyMediaUrl) {
+          verifyMediaUrl = preset.url;
+        }
       }
     }
 
@@ -275,8 +281,11 @@ export async function runSeed(
         spec.beforeImageUrl ||
         categoryBeforePool[idx % Math.max(categoryBeforePool.length, 1)] ||
         '';
+      const categoryAfterPool = afterPoolByCat.get(spec.categoryCode) ?? [];
       const afterImageUrl =
-        spec.afterImageUrl || afterByCat.get(spec.categoryCode) || '';
+        spec.afterImageUrl ||
+        categoryAfterPool[idx % Math.max(categoryAfterPool.length, 1)] ||
+        '';
       const resolutionNote =
         spec.status === IssueStatus.RESOLVED
           ? 'Đã hoàn tất xử lý tại hiện trường kèm ảnh nghiệm thu.'
@@ -578,14 +587,16 @@ export async function runSeed(
           }),
         );
 
-        if (verifyMediaUrl) {
+        const verificationUrl =
+          verifyByCat.get(spec.categoryCode) ?? verifyMediaUrl;
+        if (verificationUrl) {
           await mediaRepo.save(
             mediaRepo.create({
               issueId: issue.id,
               verificationId: verification.id,
               uploadedById: demoVolunteer.id,
               stage: MediaStage.VERIFICATION,
-              url: verifyMediaUrl,
+              url: verificationUrl,
               caption: 'Ảnh thanh niên xác minh thực địa HT-2026-001',
             }),
           );
