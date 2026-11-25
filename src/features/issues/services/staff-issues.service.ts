@@ -8,6 +8,7 @@ import type { Repository } from 'typeorm';
 import type { ApiResponseDto } from '../../../common/dto/api-response.dto.js';
 import {
   IssueStatus,
+  MediaStage,
   ReportType,
   TimelineAction,
   WorkflowStage,
@@ -24,7 +25,9 @@ import type {
   MergeIssuesDto,
   QueryStaffIssuesDto,
   RejectIssueDto,
+  ResolveIssueDto,
   TriageIssueDto,
+  UpdateIssueProgressDto,
   UpdatePublicReviewDto,
 } from '../dto/staff-issues.dto.js';
 import { Issue } from '../entities/issue.entity.js';
@@ -543,6 +546,160 @@ export class StaffIssuesService {
     });
 
     return this.findStaffDetail(target.publicId);
+  }
+
+  async updateProgress(
+    identifier: string,
+    user: AuthenticatedUser,
+    dto: UpdateIssueProgressDto,
+  ): Promise<StaffIssueDetailDto> {
+    const issue = await this.findIssueOrThrow(identifier);
+
+    if (issue.status !== IssueStatus.IN_PROGRESS) {
+      throw new BadRequestException(
+        'Chỉ có thể cập nhật tiến độ cho hồ sơ đang ở trạng thái Đang xử lý (IN_PROGRESS).',
+      );
+    }
+
+    const cleanedUrls = (dto.imageUrls ?? [])
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const noteText = dto.note?.trim() || null;
+
+    await this.issueRepo.manager.transaction(async (manager) => {
+      const txIssueRepo = manager.getRepository(Issue);
+      const txMediaRepo = manager.getRepository(IssueMedia);
+      const txProgressRepo = manager.getRepository(ProgressUpdate);
+
+      const previousStage = issue.stage;
+      issue.stage = dto.stage;
+      if (
+        noteText &&
+        (dto.stage === WorkflowStage.RESOLUTION_SUBMITTED ||
+          dto.stage === WorkflowStage.RESOLUTION_REVIEW)
+      ) {
+        issue.resolutionNote = noteText;
+      }
+      await txIssueRepo.save(issue);
+
+      if (cleanedUrls.length > 0) {
+        await txMediaRepo.save(
+          cleanedUrls.map((url, idx) =>
+            txMediaRepo.create({
+              issueId: issue.id,
+              uploadedById: user.id,
+              stage: MediaStage.AFTER,
+              url,
+              caption: `Ảnh cập nhật thi công #${idx + 1} (${issue.code})`,
+            }),
+          ),
+        );
+      }
+
+      const stageLabel: Record<UpdateIssueProgressDto['stage'], string> = {
+        [WorkflowStage.WORK_ACCEPTED]: 'Đơn vị phụ trách đã tiếp nhận thực hiện',
+        [WorkflowStage.RESOLUTION_SUBMITTED]:
+          'Đơn vị đã nộp kết quả và ảnh sau xử lý chờ nghiệm thu',
+        [WorkflowStage.RESOLUTION_REVIEW]: 'Hồ sơ đang được kiểm tra nghiệm thu',
+      };
+
+      await txProgressRepo.save(
+        txProgressRepo.create({
+          issueId: issue.id,
+          actorId: user.id,
+          actionType: TimelineAction.PROGRESS_NOTE,
+          fromStatus: issue.status,
+          toStatus: issue.status,
+          previousStage,
+          newStage: dto.stage,
+          content: noteText
+            ? `${stageLabel[dto.stage]}: ${noteText}`
+            : stageLabel[dto.stage],
+          isPublic: true,
+        }),
+      );
+    });
+
+    return this.findStaffDetail(issue.publicId);
+  }
+
+  async resolveIssue(
+    identifier: string,
+    user: AuthenticatedUser,
+    dto: ResolveIssueDto,
+  ): Promise<StaffIssueDetailDto> {
+    const issue = await this.findIssueOrThrow(identifier);
+
+    if (issue.status !== IssueStatus.IN_PROGRESS) {
+      throw new BadRequestException(
+        'Chỉ có thể nghiệm thu hoàn thành hồ sơ đang xử lý (IN_PROGRESS).',
+      );
+    }
+
+    const cleanedUrls = (dto.imageUrls ?? [])
+      .map((u) => u.trim())
+      .filter(Boolean);
+
+    if (cleanedUrls.length === 0) {
+      const existingAfterCount = await this.issueRepo.manager
+        .getRepository(IssueMedia)
+        .count({
+          where: { issueId: issue.id, stage: MediaStage.AFTER },
+        });
+      if (existingAfterCount === 0) {
+        throw new BadRequestException(
+          'Nghiệm thu hoàn thành bắt buộc có tối thiểu 1 ảnh sau xử lý (AFTER).',
+        );
+      }
+    }
+
+    const resolutionNote = dto.resolutionNote.trim();
+    const resolvedAt = new Date();
+
+    await this.issueRepo.manager.transaction(async (manager) => {
+      const txIssueRepo = manager.getRepository(Issue);
+      const txMediaRepo = manager.getRepository(IssueMedia);
+      const txProgressRepo = manager.getRepository(ProgressUpdate);
+
+      const fromStatus = issue.status;
+      const previousStage = issue.stage;
+      issue.status = IssueStatus.RESOLVED;
+      issue.stage = WorkflowStage.COMPLETED;
+      issue.resolutionNote = resolutionNote;
+      issue.resolvedAt = resolvedAt;
+      issue.needsReopenReview = false;
+      await txIssueRepo.save(issue);
+
+      if (cleanedUrls.length > 0) {
+        await txMediaRepo.save(
+          cleanedUrls.map((url, idx) =>
+            txMediaRepo.create({
+              issueId: issue.id,
+              uploadedById: user.id,
+              stage: MediaStage.AFTER,
+              url,
+              caption: `Ảnh nghiệm thu sau xử lý #${idx + 1} (${issue.code})`,
+            }),
+          ),
+        );
+      }
+
+      await txProgressRepo.save(
+        txProgressRepo.create({
+          issueId: issue.id,
+          actorId: user.id,
+          actionType: TimelineAction.RESOLVED,
+          fromStatus,
+          toStatus: IssueStatus.RESOLVED,
+          previousStage,
+          newStage: WorkflowStage.COMPLETED,
+          content: `Đã nghiệm thu hoàn thành: ${resolutionNote}`,
+          isPublic: true,
+        }),
+      );
+    });
+
+    return this.findStaffDetail(issue.publicId);
   }
 
   private async findIssueOrThrow(identifier: string): Promise<Issue> {

@@ -21,6 +21,7 @@ import { IssueMedia } from '../../media/entities/issue-media.entity.js';
 import type { CreateIssueDto } from '../dto/create-issue.dto.js';
 import type {
   FeedbackSummaryDto,
+  IssueVerificationSummaryDto,
   MyIssueItemDto,
   NearbyIssueItemDto,
   PublicIssueDetailDto,
@@ -191,6 +192,7 @@ export class IssuesService {
             role: true,
           },
         },
+        verifications: true,
         feedbacks: true,
       },
     });
@@ -242,6 +244,7 @@ export class IssuesService {
         };
       });
 
+    const latestVerification = this.buildLatestVerification(issue);
     const feedbackSummary = this.buildFeedbackSummary(issue);
 
     return Object.assign(summary, {
@@ -252,6 +255,7 @@ export class IssuesService {
       aiConfidence: issue.aiConfidence,
       media,
       timeline,
+      latestVerification,
       feedbackSummary,
     });
   }
@@ -705,6 +709,31 @@ export class IssuesService {
     };
   }
 
+  private buildLatestVerification(
+    issue: Issue,
+  ): IssueVerificationSummaryDto | null {
+    const list = [...(issue.verifications ?? [])].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+    );
+    const latest = list[0];
+    if (!latest) return null;
+
+    return {
+      publicId: latest.publicId,
+      status: latest.status,
+      instruction: latest.instruction,
+      dueAt: latest.dueAt,
+      outcome: latest.outcome,
+      isIssueConfirmed: latest.isIssueConfirmed,
+      verifiedLatitude: latest.verifiedLatitude,
+      verifiedLongitude: latest.verifiedLongitude,
+      safetyRiskNote: latest.safetyRiskNote,
+      resultNote: latest.resultNote,
+      completedAt: latest.completedAt,
+      volunteerLabel: latest.volunteerId ? 'Thanh niên tình nguyện' : null,
+    };
+  }
+
   private buildFeedbackSummary(issue: Issue): FeedbackSummaryDto {
     const feedbacks = [...(issue.feedbacks ?? [])].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
@@ -732,8 +761,10 @@ export class IssuesService {
         publicId: f.publicId,
         isSatisfied: f.isSatisfied,
         rating: f.rating,
+        reason: f.reason,
         comment: f.comment,
         reviewStatus: f.reviewStatus,
+        reviewNote: f.reviewNote,
         createdAt: f.createdAt,
       })),
     };

@@ -22,7 +22,9 @@ import {
   MergeIssuesDto,
   QueryStaffIssuesDto,
   RejectIssueDto,
+  ResolveIssueDto,
   TriageIssueDto,
+  UpdateIssueProgressDto,
   UpdatePublicReviewDto,
 } from '../dto/staff-issues.dto.js';
 import { StaffIssuesService } from '../services/staff-issues.service.js';
@@ -117,6 +119,32 @@ export class StaffIssuesController {
     @Body() dto: MergeIssuesDto,
   ): Promise<StaffIssueDetailDto> {
     return this.staffIssuesService.mergeIssues(publicId, user, dto);
+  }
+
+  @Patch(':publicId/progress')
+  @ApiOperation({
+    summary:
+      'Cập nhật tiến độ xử lý của đơn vị chuyên trách (work_accepted, resolution_submitted, resolution_review)',
+  })
+  updateProgress(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateIssueProgressDto,
+  ): Promise<StaffIssueDetailDto> {
+    return this.staffIssuesService.updateProgress(publicId, user, dto);
+  }
+
+  @Patch(':publicId/resolve')
+  @ApiOperation({
+    summary:
+      'Nghiệm thu hoàn thành sự cố (bắt buộc tối thiểu 1 ảnh AFTER, chuyển RESOLVED / completed)',
+  })
+  resolveIssue(
+    @Param('publicId') publicId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ResolveIssueDto,
+  ): Promise<StaffIssueDetailDto> {
+    return this.staffIssuesService.resolveIssue(publicId, user, dto);
   }
 }
 

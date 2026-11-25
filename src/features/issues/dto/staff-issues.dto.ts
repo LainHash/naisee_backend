@@ -10,6 +10,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   IsUUID,
   Max,
   MaxLength,
@@ -203,5 +204,50 @@ export class SupplementIssueDto {
   @IsNotEmpty({ message: 'Vui lòng nhập nội dung bổ sung' })
   @MaxLength(1500)
   content: string;
+}
+
+export class UpdateIssueProgressDto {
+  /** Bước tiến độ xử lý mới (work_accepted, resolution_submitted, resolution_review) */
+  @IsIn(
+    [
+      WorkflowStage.WORK_ACCEPTED,
+      WorkflowStage.RESOLUTION_SUBMITTED,
+      WorkflowStage.RESOLUTION_REVIEW,
+    ],
+    {
+      message:
+        'stage phải thuộc work_accepted, resolution_submitted hoặc resolution_review',
+    },
+  )
+  stage:
+    | WorkflowStage.WORK_ACCEPTED
+    | WorkflowStage.RESOLUTION_SUBMITTED
+    | WorkflowStage.RESOLUTION_REVIEW;
+
+  /** Ghi chú cập nhật tiến độ thi công */
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+
+  /** Ảnh sau xử lý đính kèm (nếu đơn vị thi công gửi nghiệm thu) */
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  imageUrls?: string[];
+}
+
+export class ResolveIssueDto {
+  /** Nội dung kết quả xử lý chính thức gửi tới người dân */
+  @IsString()
+  @IsNotEmpty({ message: 'Vui lòng nhập nội dung phản hồi kết quả xử lý' })
+  @MaxLength(2000)
+  resolutionNote: string;
+
+  /** Danh sách URL ảnh SAU xử lý (AFTER) */
+  @IsOptional()
+  @IsArray()
+  @IsUrl({}, { each: true })
+  imageUrls?: string[];
 }
 
